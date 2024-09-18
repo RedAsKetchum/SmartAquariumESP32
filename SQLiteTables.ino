@@ -86,52 +86,6 @@ void setupTime() {
   Serial.println("\nTime synchronized");
 }
 
-// Function to fetch the first entry of each sensor and return as JSON
-String fetchFirstEntryAsJson() {
-  const char* sqlSelectFirstEntries = 
-    "SELECT ID, Sensor1, Sensor1Timestamp, Sensor2, Sensor2Timestamp, Sensor3, Sensor3Timestamp "
-    "FROM SensorData ORDER BY ID ASC LIMIT 1;";
-  
-  sqlite3_stmt* stmt;
-  String jsonResult = "{";
-
-  // Prepare the SQL query
-  rc = sqlite3_prepare_v2(db, sqlSelectFirstEntries, -1, &stmt, NULL);
-
-  if (rc != SQLITE_OK) {
-    Serial.printf("Failed to execute query: %s\n", sqlite3_errmsg(db));
-    return "{}";  // Return empty JSON if there's an error
-  }
-
-  // Fetch and prepare the JSON response
-  if (sqlite3_step(stmt) == SQLITE_ROW) {
-    int id = sqlite3_column_int(stmt, 0);
-    float sensor1 = sqlite3_column_double(stmt, 1);
-    const unsigned char* sensor1Timestamp = sqlite3_column_text(stmt, 2);
-    float sensor2 = sqlite3_column_double(stmt, 3);
-    const unsigned char* sensor2Timestamp = sqlite3_column_text(stmt, 4);
-    float sensor3 = sqlite3_column_double(stmt, 5);
-    const unsigned char* sensor3Timestamp = sqlite3_column_text(stmt, 6);
-
-    // Format the JSON data
-    jsonResult += "\"ID\":" + String(id) + ",";
-    jsonResult += "\"Sensor1\":" + formatValue(sensor1) + ",";
-    jsonResult += "\"Sensor1Timestamp\":\"" + String((char*)sensor1Timestamp) + "\",";
-    jsonResult += "\"Sensor2\":" + formatValue(sensor2) + ",";
-    jsonResult += "\"Sensor2Timestamp\":\"" + String((char*)sensor2Timestamp) + "\",";
-    jsonResult += "\"Sensor3\":" + formatValue(sensor3) + ",";
-    jsonResult += "\"Sensor3Timestamp\":\"" + String((char*)sensor3Timestamp) + "\"";
-  } else {
-    return "{}";  // Return empty JSON if no data is found
-  }
-
-  jsonResult += "}";
-  
-  // Finalize the statement
-  sqlite3_finalize(stmt);
-  return jsonResult;
-}
-
 // Function to fetch the newest entry for sensor data and return it as JSON
 String fetchNewestEntryAsJson() {
   const char* sqlSelectNewestEntry = 
@@ -235,7 +189,7 @@ Serial.println("WebSocket server started on port 81, waiting for clients...");
 
 
   // Handle CORS for preflight requests (OPTIONS method)
-  server.on("/getFirstEntry", HTTP_OPTIONS, handleCORS);
+  server.on("/getNewestEntry", HTTP_OPTIONS, handleCORS);
   
   // Define the behavior for when the root URL ("/") is accessed
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
@@ -246,16 +200,6 @@ Serial.println("WebSocket server started on port 81, waiting for clients...");
     response->addHeader("Access-Control-Allow-Headers", "Content-Type");
     request->send(response);
   });
-
-  // Define the route to get the first sensor entry as JSON
-  // server.on("/getFirstEntry", HTTP_GET, [](AsyncWebServerRequest *request) {
-  //   String jsonResponse = fetchFirstEntryAsJson();
-  //   AsyncWebServerResponse *response = request->beginResponse(200, "application/json", jsonResponse);
-  //   response->addHeader("Access-Control-Allow-Origin", "*");
-  //   response->addHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-  //   response->addHeader("Access-Control-Allow-Headers", "Content-Type");
-  //   request->send(response);
-  // });
 
   // Define the route to get the newest sensor entry as JSON
   server.on("/getNewestEntry", HTTP_GET, [](AsyncWebServerRequest *request) {
@@ -349,7 +293,7 @@ Serial.println("WebSocket server started on port 81, waiting for clients...");
 
 void loop() {
 
-    // Handle WebSocket events TESTING!!!
+    // Handle WebSocket events
     webSocket.loop();
 
 
@@ -390,6 +334,6 @@ void loop() {
   // Print the table contents after inserting data
   printTable();  // This will print the contents of the table to the Serial Monitor
 
-  delay(10000);  // Insert data every 10 seconds
+  delay(5000);  // Insert data every 5 seconds
 }
 
