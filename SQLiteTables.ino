@@ -230,6 +230,9 @@ void setup() {
   webSocket.begin();
   webSocket.onEvent(onWebSocketEvent);
 
+  // Add a serial message to confirm WebSocket is listening
+Serial.println("WebSocket server started on port 81, waiting for clients...");
+
 
   // Handle CORS for preflight requests (OPTIONS method)
   server.on("/getFirstEntry", HTTP_OPTIONS, handleCORS);
@@ -274,7 +277,7 @@ void setup() {
   });
 
   // Start the server
-  Serial.println("Server initialized and ready to listen for incoming client connections...");
+  Serial.println("Server initialized and ready to listen for incoming client connections (JSON)...");
   server.begin();
 
   // Set up Time
