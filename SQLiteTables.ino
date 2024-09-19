@@ -332,12 +332,17 @@ void loop() {
     Serial.printf("SQL error during data insertion: %s\n", zErrMsg);
     sqlite3_free(zErrMsg);  // Free memory for error message
   } else {
-    Serial.println("Inserted sensor data successfully.");
+    //Serial.println("Inserted sensor data successfully.");
     // Send the newest entry to WebSocket clients
     sendNewestEntryToClients();
+  
+     // Fetch the newest entry as JSON and print it
+      String jsonResponse = fetchNewestEntryAsJson();
+      Serial.println("Sending JSON response to WebSocket clients:");
+      Serial.println(jsonResponse);
 
      // Print the table after the insertion
-      printTable();
+      //printTable();
     }
   }
 
