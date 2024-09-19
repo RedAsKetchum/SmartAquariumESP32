@@ -13,6 +13,9 @@ int rc;
 const char* ssid = "Battle_Network";
 const char* password = "Pandy218!";
 
+unsigned long previousMillis = 0;   // To store the last time you inserted data
+const long interval = 5000;         // Interval between data insertions
+
 // Create an instance of the server
 AsyncWebServer server(80);
 
@@ -20,6 +23,22 @@ AsyncWebServer server(80);
 WebSocketsServer webSocket = WebSocketsServer(81);  // WebSocket runs on port 81
 
 //**********************FUNCTIONS******************
+// Function to handle WebSocket events
+void onWebSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t length) {
+  if (type == WStype_CONNECTED) {
+    Serial.printf("WebSocket client #%u connected\n", num);
+
+  } else if (type == WStype_DISCONNECTED) {
+    Serial.printf("WebSocket client #%u disconnected\n", num);
+  }
+}
+
+// Function to send the newest sensor entry via WebSocket
+void sendNewestEntryToClients() {
+  String jsonResponse = fetchNewestEntryAsJson();
+  webSocket.broadcastTXT(jsonResponse);  // Broadcast the new entry to all WebSocket clients
+}
+
 // Function to format float values to 2 decimal places
 String formatValue(float value) {
   char buffer[10];
@@ -141,20 +160,6 @@ void handleCORS(AsyncWebServerRequest *request) {
   request->send(response);
 }
 
-// Function to handle WebSocket events
-void onWebSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t length) {
-  if (type == WStype_CONNECTED) {
-    Serial.printf("WebSocket client #%u connected\n", num);
-  } else if (type == WStype_DISCONNECTED) {
-    Serial.printf("WebSocket client #%u disconnected\n", num);
-  }
-}
-
-// Function to send the newest sensor entry via WebSocket
-void sendNewestEntryToClients() {
-  String jsonResponse = fetchNewestEntryAsJson();
-  webSocket.broadcastTXT(jsonResponse);  // Broadcast the new entry to all WebSocket clients
-}
 
 
 //*******************************************MAIN LOGIC OF THE PROGRAM*****************************************
@@ -293,9 +298,11 @@ Serial.println("WebSocket server started on port 81, waiting for clients...");
 
 void loop() {
 
-    // Handle WebSocket events
-    webSocket.loop();
+ unsigned long currentMillis = millis();
 
+  // Check if the interval has passed
+  if (currentMillis - previousMillis >= interval) {
+    previousMillis = currentMillis;
 
     // Simulate sensor readings (replace with actual sensor values)
     // Generate a random float between 0 and 100
@@ -326,14 +333,15 @@ void loop() {
     sqlite3_free(zErrMsg);  // Free memory for error message
   } else {
     Serial.println("Inserted sensor data successfully.");
-
     // Send the newest entry to WebSocket clients
     sendNewestEntryToClients();
+
+     // Print the table after the insertion
+      printTable();
+    }
   }
 
-  // Print the table contents after inserting data
-  printTable();  // This will print the contents of the table to the Serial Monitor
-
-  delay(5000);  // Insert data every 5 seconds
+   // Handle WebSocket events
+  webSocket.loop();
 }
 
