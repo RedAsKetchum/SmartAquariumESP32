@@ -10,8 +10,8 @@ sqlite3 *db;
 char *zErrMsg = 0;
 int rc;
 // Replace with your network credentials
-const char* ssid = "Battle_Network";
-const char* password = "Pandy218!";
+const char* ssid = "In Your Area 2G";
+const char* password = "lightfield289";
 
 unsigned long previousMillis = 0;   // To store the last time you inserted data
 const long interval = 10000;         // Interval between data insertions
@@ -395,4 +395,3 @@ void loop() {
    // Handle WebSocket events
    //webSocket.loop();
 }
-
