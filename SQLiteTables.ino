@@ -3,40 +3,82 @@
 #include <WiFi.h>
 #include <time.h> 
 #include <ESPAsyncWebServer.h>
-#include <WebSocketsServer.h>
+//#include <WebSocketsServer.h>
 
 //*****************VARIABLES**********************
 sqlite3 *db;
 char *zErrMsg = 0;
 int rc;
 // Replace with your network credentials
-const char* ssid = "Battle_Network";
-const char* password = "Pandy218!";
+const char* ssid = "In Your Area 2G";
+const char* password = "lightfield289";
 
 unsigned long previousMillis = 0;   // To store the last time you inserted data
-const long interval = 5000;         // Interval between data insertions
+const long interval = 10000;         // Interval between data insertions
+
+float lastSensor1Value = 0;  // Global variable to track the last sent Sensor1 value
+
+
 
 // Create an instance of the server
 AsyncWebServer server(80);
 
 // Declare the WebSocket server
-WebSocketsServer webSocket = WebSocketsServer(81);  // WebSocket runs on port 81
+//WebSocketsServer webSocket = WebSocketsServer(81);  // WebSocket runs on port 81
 
 //**********************FUNCTIONS******************
 // Function to handle WebSocket events
-void onWebSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t length) {
-  if (type == WStype_CONNECTED) {
-    Serial.printf("WebSocket client #%u connected\n", num);
+// void onWebSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t length) {
+//   if (type == WStype_CONNECTED) {
+//     Serial.printf("WebSocket client #%u connected\n", num);
 
-  } else if (type == WStype_DISCONNECTED) {
-    Serial.printf("WebSocket client #%u disconnected\n", num);
+//   } else if (type == WStype_DISCONNECTED) {
+//     Serial.printf("WebSocket client #%u disconnected\n", num);
+//   }
+// }
+
+// // Function to send the newest sensor entry via WebSocket
+// void sendNewestEntryToClients() {
+//   String jsonResponse = fetchNewestEntryAsJson();
+//   webSocket.broadcastTXT(jsonResponse);  // Broadcast the new entry to all WebSocket clients
+// }
+
+// Function to handle the long polling for Sensor1
+void handleLongPolling(AsyncWebServerRequest *request) {
+  String jsonResponse = fetchNewestEntryAsJson();
+  float currentSensor1Value = getCurrentSensor1Value();  // Fetch the latest sensor1 value
+
+  // If the new value is different from the last sent value
+  if (currentSensor1Value != lastSensor1Value) {
+    lastSensor1Value = currentSensor1Value;  // Update the last sent value
+
+    // Prepare the response to send the newest Sensor1 entry
+    AsyncWebServerResponse *response = request->beginResponse(200, "application/json", jsonResponse);
+    response->addHeader("Access-Control-Allow-Origin", "*");
+    response->addHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+    response->addHeader("Access-Control-Allow-Headers", "Content-Type");
+    request->send(response);
+  } else {
+    // No new data, so store the request to respond later
+    // Alternatively, if the request stays open for too long (e.g., 10 seconds), respond with an empty result.
+    //request->send(200, "application/json", "{}");  // Respond with empty JSON after timeout
   }
 }
 
-// Function to send the newest sensor entry via WebSocket
-void sendNewestEntryToClients() {
-  String jsonResponse = fetchNewestEntryAsJson();
-  webSocket.broadcastTXT(jsonResponse);  // Broadcast the new entry to all WebSocket clients
+// Function to get the current Sensor1 value
+float getCurrentSensor1Value() {
+  const char* sqlSelectNewestEntry = "SELECT Sensor1 FROM SensorData ORDER BY ID DESC LIMIT 1;";
+  sqlite3_stmt* stmt;
+  float sensor1Value = 0;
+
+  rc = sqlite3_prepare_v2(db, sqlSelectNewestEntry, -1, &stmt, NULL);
+  if (rc == SQLITE_OK) {
+    if (sqlite3_step(stmt) == SQLITE_ROW) {
+      sensor1Value = sqlite3_column_double(stmt, 0);  // Get the Sensor1 value
+    }
+  }
+  sqlite3_finalize(stmt);
+  return sensor1Value;
 }
 
 // Function to format float values to 2 decimal places
@@ -186,12 +228,11 @@ void setup() {
   Serial.println(WiFi.localIP());
 
   // Initialize the WebSocket server TESTING!!!!
-  webSocket.begin();
-  webSocket.onEvent(onWebSocketEvent);
+  // webSocket.begin();
+  // webSocket.onEvent(onWebSocketEvent);
 
   // Add a serial message to confirm WebSocket is listening
-Serial.println("WebSocket server started on port 81, waiting for clients...");
-
+  //Serial.println("WebSocket server started on port 81, waiting for clients...");
 
   // Handle CORS for preflight requests (OPTIONS method)
   server.on("/getNewestEntry", HTTP_OPTIONS, handleCORS);
@@ -223,6 +264,11 @@ Serial.println("WebSocket server started on port 81, waiting for clients...");
     response->addHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
     response->addHeader("Access-Control-Allow-Headers", "Content-Type");
     request->send(response);
+  });
+
+  // Add long polling route for Sensor1
+  server.on("/long-polling-sensor1", HTTP_GET, [](AsyncWebServerRequest *request) {
+    handleLongPolling(request);
   });
 
   // Start the server
@@ -333,20 +379,19 @@ void loop() {
     sqlite3_free(zErrMsg);  // Free memory for error message
   } else {
     //Serial.println("Inserted sensor data successfully.");
+    
     // Send the newest entry to WebSocket clients
-    sendNewestEntryToClients();
+    //sendNewestEntryToClients();
   
-     // Fetch the newest entry as JSON and print it
+      // Fetch the newest entry as JSON and print it
       String jsonResponse = fetchNewestEntryAsJson();
-      Serial.println("Sending JSON response to WebSocket clients:");
+      //Serial.println("Sending JSON response to WebSocket clients:");
       Serial.println(jsonResponse);
 
      // Print the table after the insertion
       //printTable();
     }
   }
-
    // Handle WebSocket events
-  webSocket.loop();
+   //webSocket.loop();
 }
-
