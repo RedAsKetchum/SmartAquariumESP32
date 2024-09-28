@@ -2,45 +2,79 @@
 #include <sqlite3.h>
 #include <WiFi.h>
 #include <time.h> 
-#include <ESPAsyncWebServer.h>
 #include <ESP32Servo.h> // Include the ESP32Servo library
+#include <Adafruit_MQTT.h>
+#include <Adafruit_MQTT_Client.h>
+#include <ArduinoJson.h>
 
-//*****************VARIABLES**********************
+//************************* VARIABLES *****************************************/
 sqlite3 *db;
 char *zErrMsg = 0;
 int rc;
-const char* ssid = "Battle_Network";
-const char* password = "Pandy218!";
 unsigned long previousMillis = 0;   // To store the last time you inserted data
 const long interval = 10000;         // Interval between data insertions
 float lastSensor1Value = 0;  // Global variable to track the last sent Sensor1 value
 
-Servo myservo;  // Create a servo object
-const int servoPin = 25;
+/************************* WiFi Access Point *********************************/
+#define WLAN_SSID       "Battle_Network"
+#define WLAN_PASS       "Pandy218!"
 
-// Create an instance of the server
-AsyncWebServer server(80);
+/************************* Adafruit IO Config *********************************/
 
-// Function to handle the long polling for Sensor1
-void handleLongPolling(AsyncWebServerRequest *request) {
-  String jsonResponse = fetchNewestEntryAsJson();
-  float currentSensor1Value = getCurrentSensor1Value();  // Fetch the latest sensor1 value
+#define AIO_SERVER      "io.adafruit.com"
+#define AIO_SERVERPORT  1883                   // Use 8883 for SSL
+#define AIO_USERNAME    "RedAsKetchum"
+#define AIO_KEY         "aio_FXeu11JxZcmPv3ey6r4twxbIyrfH"
 
-  // If the new value is different from the last sent value
-  if (currentSensor1Value != lastSensor1Value) {
-    lastSensor1Value = currentSensor1Value;  // Update the last sent value
+/************************** Global State Variables ***************************/
+Servo myservo;
+const int servoPin = 25;  // GPIO for Servo
+int currentPosition = 0;  // To track current servo position
 
-    // Prepare the response to send the newest Sensor1 entry
-    AsyncWebServerResponse *response = request->beginResponse(200, "application/json", jsonResponse);
-    response->addHeader("Access-Control-Allow-Origin", "*");
-    response->addHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-    response->addHeader("Access-Control-Allow-Headers", "Content-Type");
-    request->send(response);
-  } else {
-    // No new data, so store the request to respond later
-    // Alternatively, if the request stays open for too long (e.g., 10 seconds), respond with an empty result.
-    //request->send(200, "application/json", "{}");  // Respond with empty JSON after timeout
+// Create an ESP32 WiFiClient class to connect to the MQTT server.
+WiFiClient client;
+
+// Setup the MQTT client
+Adafruit_MQTT_Client mqtt(&client, AIO_SERVER, AIO_SERVERPORT, AIO_USERNAME, AIO_KEY);
+
+// Setup a feed for controlling the servo motor
+Adafruit_MQTT_Subscribe servoControlFeed = Adafruit_MQTT_Subscribe(&mqtt, AIO_USERNAME "/feeds/servo-control");
+
+// Define the feed where you will publish sensor data
+Adafruit_MQTT_Publish sensorDataFeed = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "/feeds/temperature-sensor");
+
+
+/************************** Functions ***********************************/
+// Function to connect to Wi-Fi
+void connectWiFi() {
+  Serial.print("Connecting to WiFi...\n");
+  Serial.print("");
+  WiFi.begin(WLAN_SSID, WLAN_PASS);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    //Serial.print(".");
   }
+  Serial.println("Connected to the WiFi Network!");
+}
+
+// Function to connect to Adafruit IO (MQTT)
+void connectMQTT() {
+  int8_t ret;
+
+  if (mqtt.connected()) {
+    return;
+  }
+
+  Serial.print("Connecting to Adafruit IO... ");
+  
+  while ((ret = mqtt.connect()) != 0) {
+    Serial.println(mqtt.connectErrorString(ret));
+    Serial.println("Retrying in 5 seconds...");
+    mqtt.disconnect();
+    delay(5000);  // wait 5 seconds
+  }
+
+  Serial.println("Connected to Adafruit IO!");
 }
 
 // Function to get the current Sensor1 value
@@ -171,16 +205,6 @@ String fetchNewestEntryAsJson() {
   return jsonResult;
 }
 
-// Function to handle CORS preflight requests
-void handleCORS(AsyncWebServerRequest *request) {
-  AsyncWebServerResponse *response = request->beginResponse(200, "text/plain", "OK");
-  response->addHeader("Access-Control-Allow-Origin", "*");
-  response->addHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-  response->addHeader("Access-Control-Allow-Headers", "Content-Type");
-  request->send(response);
-}
-
-
 //Button Functions
 //Feeder Action 
 void moveServoSlow(int startAngle, int endAngle) {
@@ -203,73 +227,28 @@ void moveServoSlow(int startAngle, int endAngle) {
 
 
 
-//*******************************************MAIN LOGIC OF THE PROGRAM*****************************************
+//***************************************** MAIN LOGIC OF THE PROGRAM ***************************************/
 void setup() {
 
   Serial.begin(115200);
+
+  delay(1000);// Gives time for the serial monitor to catch up with the statements that follow
+
   Serial.println("Starting setup...");
 
   // Connect to Wi-Fi
-  WiFi.begin(ssid, password);
-  Serial.print("Connecting to WiFi");
-
-   // Seed the random number generator with an analog input
-  randomSeed(analogRead(0));
-  
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(1000);
-    Serial.print(".");
-  }
-  
-  Serial.println();
-  Serial.println("Connected to WiFi");
-  Serial.print("IP Address: ");
-  Serial.println(WiFi.localIP());
-
-  // Handle CORS for preflight requests (OPTIONS method)
-  server.on("/getNewestEntry", HTTP_OPTIONS, handleCORS);
-  
-  // Define the behavior for when the root URL ("/") is accessed
-  server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
-    Serial.println("Client connected to root URL");
-    AsyncWebServerResponse *response = request->beginResponse(200, "text/plain", "Hello, this is ESP32 Async Web Server!");
-    response->addHeader("Access-Control-Allow-Origin", "*");
-    response->addHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-    response->addHeader("Access-Control-Allow-Headers", "Content-Type");
-    request->send(response);
-  });
-
-  // Define the route to get the newest sensor entry as JSON
-  server.on("/getNewestEntry", HTTP_GET, [](AsyncWebServerRequest *request) {
-    String jsonResponse = fetchNewestEntryAsJson();
-    AsyncWebServerResponse *response = request->beginResponse(200, "application/json", jsonResponse);
-    response->addHeader("Access-Control-Allow-Origin", "*");
-    response->addHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-    response->addHeader("Access-Control-Allow-Headers", "Content-Type");
-    request->send(response);
-  });
-
-  // Handle CORS headers for all requests
-  server.onNotFound([](AsyncWebServerRequest *request) {
-    AsyncWebServerResponse *response = request->beginResponse(404, "text/plain", "Not Found");
-    response->addHeader("Access-Control-Allow-Origin", "*");
-    response->addHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-    response->addHeader("Access-Control-Allow-Headers", "Content-Type");
-    request->send(response);
-  });
-
-  // Add long polling route for Sensor1
-  server.on("/long-polling-sensor1", HTTP_GET, [](AsyncWebServerRequest *request) {
-    handleLongPolling(request);
-  });
-
-  // Start the server
-  Serial.println("Server initialized and ready to listen for incoming client connections (JSON)...");
-  server.begin();
+  connectWiFi();
 
   // Set up Time
   setupTime();
 
+  // Seed the random number generator with an analog input (for testing database entries)
+  randomSeed(analogRead(0));
+  
+  //Print ESP32s IP Address
+  Serial.print("IP Address: ");
+  Serial.println(WiFi.localIP());
+  
   // Mount SPIFFS
   if (!SPIFFS.begin()) {
     Serial.println("Failed to mount SPIFFS, formatting now...");
@@ -331,29 +310,22 @@ void setup() {
   }
 
   // Print the contents of the table
-  printTable();
+  //printTable();
   
   //Button Setups
-  // Attach the servo to the specified pin
-  myservo.attach(servoPin);  // Using default pulse width range
-  myservo.write(80);  // Move to the neutral position (80 degrees)
 
-  // Define the web server route for moving the servo
-  server.on("/move_servo", HTTP_GET, [](AsyncWebServerRequest *request){
-    moveServoSlow(10, 0);  // Move backward 30 degrees slowly
-    delay(1000);           // Pause for 1 second
-    moveServoSlow(0, 50);  // Move forward 30 degrees slowly
-    request->send(200, "text/plain", "Servo moved 30 degrees forward and back");
-  });
 
-  // Start the server
-  server.begin();
-  Serial.println("Server started and ready to accept requests.");
+
+
+
 }
-  
+//******************************** Loop ******************************/ 
 void loop() {
 
- unsigned long currentMillis = millis();
+  unsigned long currentMillis = millis();
+
+  // Ensure MQTT connection
+  connectMQTT();
 
   // Check if the interval has passed
   if (currentMillis - previousMillis >= interval) {
@@ -388,9 +360,21 @@ void loop() {
     sqlite3_free(zErrMsg);  // Free memory for error message
   } else {
     //Serial.println("Inserted sensor data successfully.");
+
       // Fetch the newest entry as JSON and print it
       String jsonResponse = fetchNewestEntryAsJson();
-      Serial.println(jsonResponse);
+
+      //Convert String to const char* using c_str()
+      const char* jsonString = jsonResponse.c_str();
+
+      // Publish the JSON string to the Adafruit IO feed
+      if (!sensorDataFeed.publish(jsonString)) {
+        Serial.println("Failed to send sensor data");
+      } else {
+        Serial.println("Sensor data sent successfully");
+      }
+
+      //Serial.println(jsonResponse);
 
      // Print the table after the insertion
       //printTable();
