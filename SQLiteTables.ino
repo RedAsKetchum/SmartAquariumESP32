@@ -3,45 +3,23 @@
 #include <WiFi.h>
 #include <time.h> 
 #include <ESPAsyncWebServer.h>
-//#include <WebSocketsServer.h>
+#include <ESP32Servo.h> // Include the ESP32Servo library
 
 //*****************VARIABLES**********************
 sqlite3 *db;
 char *zErrMsg = 0;
 int rc;
-// Replace with your network credentials
-const char* ssid = "In Your Area 2G";
-const char* password = "lightfield289";
-
+const char* ssid = "Battle_Network";
+const char* password = "Pandy218!";
 unsigned long previousMillis = 0;   // To store the last time you inserted data
 const long interval = 10000;         // Interval between data insertions
-
 float lastSensor1Value = 0;  // Global variable to track the last sent Sensor1 value
 
-
+Servo myservo;  // Create a servo object
+const int servoPin = 25;
 
 // Create an instance of the server
 AsyncWebServer server(80);
-
-// Declare the WebSocket server
-//WebSocketsServer webSocket = WebSocketsServer(81);  // WebSocket runs on port 81
-
-//**********************FUNCTIONS******************
-// Function to handle WebSocket events
-// void onWebSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t length) {
-//   if (type == WStype_CONNECTED) {
-//     Serial.printf("WebSocket client #%u connected\n", num);
-
-//   } else if (type == WStype_DISCONNECTED) {
-//     Serial.printf("WebSocket client #%u disconnected\n", num);
-//   }
-// }
-
-// // Function to send the newest sensor entry via WebSocket
-// void sendNewestEntryToClients() {
-//   String jsonResponse = fetchNewestEntryAsJson();
-//   webSocket.broadcastTXT(jsonResponse);  // Broadcast the new entry to all WebSocket clients
-// }
 
 // Function to handle the long polling for Sensor1
 void handleLongPolling(AsyncWebServerRequest *request) {
@@ -203,6 +181,27 @@ void handleCORS(AsyncWebServerRequest *request) {
 }
 
 
+//Button Functions
+//Feeder Action 
+void moveServoSlow(int startAngle, int endAngle) {
+
+  // Move the servo in small steps with a delay to control speed
+  if (startAngle < endAngle) {
+    // Move forward
+    for (int pos = startAngle; pos <= endAngle; pos++) {
+      myservo.write(pos);  // Move the servo to the current position
+      delay(15);           // Wait 30 ms between steps to slow down movement
+    }
+  } else {
+    // Move backward
+    for (int pos = startAngle; pos >= endAngle; pos--) {
+      myservo.write(pos);  // Move the servo to the current position
+      delay(20);           // Wait 15 ms between steps/degree to slow down movement
+    }
+  }
+}
+
+
 
 //*******************************************MAIN LOGIC OF THE PROGRAM*****************************************
 void setup() {
@@ -226,13 +225,6 @@ void setup() {
   Serial.println("Connected to WiFi");
   Serial.print("IP Address: ");
   Serial.println(WiFi.localIP());
-
-  // Initialize the WebSocket server TESTING!!!!
-  // webSocket.begin();
-  // webSocket.onEvent(onWebSocketEvent);
-
-  // Add a serial message to confirm WebSocket is listening
-  //Serial.println("WebSocket server started on port 81, waiting for clients...");
 
   // Handle CORS for preflight requests (OPTIONS method)
   server.on("/getNewestEntry", HTTP_OPTIONS, handleCORS);
@@ -340,8 +332,25 @@ void setup() {
 
   // Print the contents of the table
   printTable();
-}
+  
+  //Button Setups
+  // Attach the servo to the specified pin
+  myservo.attach(servoPin);  // Using default pulse width range
+  myservo.write(80);  // Move to the neutral position (80 degrees)
 
+  // Define the web server route for moving the servo
+  server.on("/move_servo", HTTP_GET, [](AsyncWebServerRequest *request){
+    moveServoSlow(10, 0);  // Move backward 30 degrees slowly
+    delay(1000);           // Pause for 1 second
+    moveServoSlow(0, 50);  // Move forward 30 degrees slowly
+    request->send(200, "text/plain", "Servo moved 30 degrees forward and back");
+  });
+
+  // Start the server
+  server.begin();
+  Serial.println("Server started and ready to accept requests.");
+}
+  
 void loop() {
 
  unsigned long currentMillis = millis();
@@ -379,19 +388,12 @@ void loop() {
     sqlite3_free(zErrMsg);  // Free memory for error message
   } else {
     //Serial.println("Inserted sensor data successfully.");
-    
-    // Send the newest entry to WebSocket clients
-    //sendNewestEntryToClients();
-  
       // Fetch the newest entry as JSON and print it
       String jsonResponse = fetchNewestEntryAsJson();
-      //Serial.println("Sending JSON response to WebSocket clients:");
       Serial.println(jsonResponse);
 
      // Print the table after the insertion
       //printTable();
     }
   }
-   // Handle WebSocket events
-   //webSocket.loop();
 }
