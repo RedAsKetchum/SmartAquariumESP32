@@ -2,10 +2,12 @@
 #include <sqlite3.h>
 #include <WiFi.h>
 #include <time.h> 
-#include <ESP32Servo.h> // Include the ESP32Servo library
+#include <ESP32Servo.h> 
 #include <Adafruit_MQTT.h>
 #include <Adafruit_MQTT_Client.h>
 #include <ArduinoJson.h>
+#include <OneWire.h>
+#include <DallasTemperature.h>
 
 //************************* VARIABLES *****************************************/
 sqlite3 *db;
@@ -14,6 +16,12 @@ int rc;
 unsigned long previousMillis = 0;   // To store the last time you inserted data
 const long interval = 10000;         // Interval between data insertions
 float lastSensor1Value = 0;  //  Global variable to track the last sent Sensor1 value
+// Data wire is connected to pin 2 on the Arduino
+#define ONE_WIRE_BUS 33
+// Setup a oneWire instance to communicate with any OneWire devices
+OneWire oneWire(ONE_WIRE_BUS);
+// Pass the oneWire reference to DallasTemperature library
+DallasTemperature tempSensor(&oneWire);
 
 /************************* WiFi Access Point *********************************/
 #define WLAN_SSID       "Battle_Network"
@@ -249,6 +257,9 @@ void setup() {
   Serial.print("IP Address: ");
   Serial.println(WiFi.localIP());
 
+  // Start up the DS18B20 library
+  tempSensor.begin();
+
   // Mount SPIFFS
   if (!SPIFFS.begin(true)) {
     Serial.println("Failed to mount SPIFFS, formatting now...");
@@ -321,6 +332,9 @@ void loop() {
   // Ensure MQTT connection
   connectMQTT();
 
+  // Request temperature readings from the sensor(s)  CHECK PLACEMENT!!!
+  tempSensor.requestTemperatures();
+
   // Check if the interval has passed
   if (currentMillis - previousMillis >= interval) {
     previousMillis = currentMillis;
@@ -367,8 +381,18 @@ void loop() {
     }
 
     // Simulate sensor readings (replace with actual sensor values)
-    float sensor1Value = random(0, 10000) / 100.0;  // Sensor 1 reading
+    //float sensor1Value = random(0, 10000) / 100.0;  // Sensor 1 reading
+
+    // Fetch temperature in Celsius from the sensor and convert to Farenheit
+    float temperatureC = tempSensor.getTempCByIndex(0);  // Index 0 assumes one sensor is connected
+    float temperatureF = tempSensor.toFahrenheit(temperatureC);
     String sensor1Timestamp = getTimestamp();
+    
+    // Wait 1 second before reading again
+    delay(1000);
+
+    //float sensor1Value = 
+    //String sensor1Timestamp = getTimestamp();
     
     float sensor2Value = 19.78;  // Sensor 2 reading
     String sensor2Timestamp = getTimestamp();
@@ -377,7 +401,7 @@ void loop() {
     String sensor3Timestamp = getTimestamp();
 
     // Format sensor values to 2 decimal places
-    String formattedSensor1 = formatValue(sensor1Value);
+    String formattedSensor1 = formatValue(temperatureF);
     String formattedSensor2 = formatValue(sensor2Value);
     String formattedSensor3 = formatValue(sensor3Value);
 
