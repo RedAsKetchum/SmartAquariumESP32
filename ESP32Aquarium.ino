@@ -13,7 +13,7 @@ char *zErrMsg = 0;
 int rc;
 unsigned long previousMillis = 0;   // To store the last time you inserted data
 const long interval = 10000;         // Interval between data insertions
-float lastSensor1Value = 0;  // Global variable to track the last sent Sensor1 value
+float lastSensor1Value = 0;  //  Global variable to track the last sent Sensor1 value
 
 /************************* WiFi Access Point *********************************/
 #define WLAN_SSID       "Battle_Network"
@@ -248,9 +248,9 @@ void setup() {
   //Print ESP32s IP Address
   Serial.print("IP Address: ");
   Serial.println(WiFi.localIP());
-  
+
   // Mount SPIFFS
-  if (!SPIFFS.begin()) {
+  if (!SPIFFS.begin(true)) {
     Serial.println("Failed to mount SPIFFS, formatting now...");
     if (SPIFFS.format()) {
       Serial.println("SPIFFS formatted successfully, retrying mount...");
@@ -310,18 +310,12 @@ void setup() {
   }
 
   // Print the contents of the table
-  //printTable();
+  printTable();
   
   //Button Setups
-
-
-
-
-
 }
 //******************************** Loop ******************************/ 
 void loop() {
-
   unsigned long currentMillis = millis();
 
   // Ensure MQTT connection
@@ -331,53 +325,93 @@ void loop() {
   if (currentMillis - previousMillis >= interval) {
     previousMillis = currentMillis;
 
-    // Simulate sensor readings (replace with actual sensor values)
-    // Generate a random float between 0 and 100
-  float sensor1Value = random(0, 10000) / 100.0;  // Sensor 1 reading
-  String sensor1Timestamp = getTimestamp();
-  
-  float sensor2Value = 19.78;  // Sensor 2 reading
-  String sensor2Timestamp = getTimestamp();
-  
-  float sensor3Value = 30.12;  // Sensor 3 reading
-  String sensor3Timestamp = getTimestamp();
-
-  // Format sensor values to 2 decimal places
-  String formattedSensor1 = formatValue(sensor1Value);
-  String formattedSensor2 = formatValue(sensor2Value);
-  String formattedSensor3 = formatValue(sensor3Value);
-
-  // Insert the sensor data into the SQLite database
-  String sqlInsert = "INSERT INTO SensorData (Sensor1, Sensor1Timestamp, Sensor2, Sensor2Timestamp, Sensor3, Sensor3Timestamp) VALUES (" +
-                     formattedSensor1 + ", '" + sensor1Timestamp + "', " + 
-                     formattedSensor2 + ", '" + sensor2Timestamp + "', " + 
-                     formattedSensor3 + ", '" + sensor3Timestamp + "');";
-
-  // Execute the SQL insert command
-  rc = sqlite3_exec(db, sqlInsert.c_str(), 0, 0, &zErrMsg);
-  if (rc != SQLITE_OK) {
-    Serial.printf("SQL error during data insertion: %s\n", zErrMsg);
-    sqlite3_free(zErrMsg);  // Free memory for error message
-  } else {
-    //Serial.println("Inserted sensor data successfully.");
-
-      // Fetch the newest entry as JSON and print it
-      String jsonResponse = fetchNewestEntryAsJson();
-
-      //Convert String to const char* using c_str()
-      const char* jsonString = jsonResponse.c_str();
-
-      // Publish the JSON string to the Adafruit IO feed
-      if (!sensorDataFeed.publish(jsonString)) {
-        Serial.println("Failed to send sensor data");
-      } else {
-        Serial.println("Sensor data sent successfully");
+    // Count the number of entries in the database
+    const char* sqlCount = "SELECT COUNT(*) FROM SensorData;";
+    sqlite3_stmt* stmt;
+    int rowCount = 0;
+    
+    rc = sqlite3_prepare_v2(db, sqlCount, -1, &stmt, NULL);
+    if (rc == SQLITE_OK) {
+      if (sqlite3_step(stmt) == SQLITE_ROW) {
+        rowCount = sqlite3_column_int(stmt, 0);  // Get the number of rows
       }
-
-      //Serial.println(jsonResponse);
-
-     // Print the table after the insertion
-      //printTable();
     }
+    sqlite3_finalize(stmt);
+    
+    //Serial.printf("Number of entries in the database: %d\n", rowCount);
+
+    // If the table has 24 entries, delete the oldest one
+    if (rowCount >= 24) {
+      // Find the entry with the smallest ID (oldest entry)
+      const char* sqlSelectOldest = "SELECT MIN(ID) FROM SensorData;";
+      int oldestId = 0;
+      rc = sqlite3_prepare_v2(db, sqlSelectOldest, -1, &stmt, NULL);
+      if (rc == SQLITE_OK) {
+        if (sqlite3_step(stmt) == SQLITE_ROW) {
+          oldestId = sqlite3_column_int(stmt, 0);  // Get the ID of the oldest row
+        }
+      }
+      sqlite3_finalize(stmt);
+
+      Serial.printf("Deleting entry with ID: %d\n", oldestId);
+
+      // Delete the oldest entry
+      String sqlDeleteOldest = "DELETE FROM SensorData WHERE ID = " + String(oldestId) + ";";
+      rc = sqlite3_exec(db, sqlDeleteOldest.c_str(), 0, 0, &zErrMsg);
+      if (rc != SQLITE_OK) {
+        Serial.printf("SQL error during deletion: %s\n", zErrMsg);
+        sqlite3_free(zErrMsg);  // Free memory for error message
+      } else {
+        Serial.println("Oldest entry deleted successfully.");
+      }
+    }
+
+    // Simulate sensor readings (replace with actual sensor values)
+    float sensor1Value = random(0, 10000) / 100.0;  // Sensor 1 reading
+    String sensor1Timestamp = getTimestamp();
+    
+    float sensor2Value = 19.78;  // Sensor 2 reading
+    String sensor2Timestamp = getTimestamp();
+    
+    float sensor3Value = 30.12;  // Sensor 3 reading
+    String sensor3Timestamp = getTimestamp();
+
+    // Format sensor values to 2 decimal places
+    String formattedSensor1 = formatValue(sensor1Value);
+    String formattedSensor2 = formatValue(sensor2Value);
+    String formattedSensor3 = formatValue(sensor3Value);
+
+    // Insert the sensor data into the SQLite database
+    String sqlInsert = "INSERT INTO SensorData (Sensor1, Sensor1Timestamp, Sensor2, Sensor2Timestamp, Sensor3, Sensor3Timestamp) VALUES (" +
+                       formattedSensor1 + ", '" + sensor1Timestamp + "', " + 
+                       formattedSensor2 + ", '" + sensor2Timestamp + "', " + 
+                       formattedSensor3 + ", '" + sensor3Timestamp + "');";
+
+    // Execute the SQL insert command
+    rc = sqlite3_exec(db, sqlInsert.c_str(), 0, 0, &zErrMsg);
+    if (rc != SQLITE_OK) {
+      Serial.printf("SQL error during data insertion: %s\n", zErrMsg);
+      sqlite3_free(zErrMsg);  // Free memory for error message
+    } else {
+      Serial.println("Inserted new sensor data successfully.");
+    }
+
+    // Fetch the newest entry as JSON and print it
+    String jsonResponse = fetchNewestEntryAsJson();
+
+    // Convert String to const char* using c_str()
+    const char* jsonString = jsonResponse.c_str();
+
+    // Publish the JSON string to the Adafruit IO feed
+    if (!sensorDataFeed.publish(jsonString)) {
+      Serial.println("Failed to send sensor data to Adafruit IO.");
+    } else {
+      Serial.println("Sensor data sent to Adafruit IO.");
+    }
+
+    Serial.println(jsonResponse);
+
+    // Print the table after the insertion or update
+    printTable();
   }
 }
