@@ -2,26 +2,34 @@
 #include <sqlite3.h>
 #include <WiFi.h>
 #include <time.h> 
-#include <ESP32Servo.h> 
+#include <ESP32Servo.h> //servo motor
+#include <Arduino.h> //pH sensor
 #include <Adafruit_MQTT.h>
 #include <Adafruit_MQTT_Client.h>
 #include <ArduinoJson.h>
 #include <OneWire.h>
-#include <DallasTemperature.h>
+#include <DallasTemperature.h>// temperature sensor
 
 //************************* VARIABLES *****************************************/
 sqlite3 *db;
 char *zErrMsg = 0;
 int rc;
 unsigned long previousMillis = 0;   // To store the last time you inserted data
-const long interval = 10000;         // Interval between data insertions
-float lastSensor1Value = 0;  //  Global variable to track the last sent Sensor1 value
-// Data wire is connected to pin 2 on the Arduino
-#define ONE_WIRE_BUS 33
-// Setup a oneWire instance to communicate with any OneWire devices
-OneWire oneWire(ONE_WIRE_BUS);
-// Pass the oneWire reference to DallasTemperature library
-DallasTemperature tempSensor(&oneWire);
+const long interval = 10000;      // Interval between data insertions
+float lastSensor1Value = 0;    //  Global variable to track the last sent Sensor1 value
+
+//Temperature Sensor
+#define ONE_WIRE_BUS 33       // Data wire is connected to pin 2 on the Arduino
+OneWire oneWire(ONE_WIRE_BUS);// Setup a oneWire instance to communicate with any OneWire devices
+DallasTemperature tempSensor(&oneWire); // Pass the oneWire reference to DallasTemperature library
+
+//pH Sensor
+// Define the pin where the pH sensor is connected
+#define PH_SENSOR_PIN 34  // GPIO34 (ADC pin) of ESP32 for analog input
+
+// Calibration values for pH sensor V1 (adjust if necessary)
+#define OFFSET 0.00         // pH offset for calibration
+#define SAMPLING_INTERVAL 1000  // Interval for pH reading (1 second)
 
 /************************* WiFi Access Point *********************************/
 #define WLAN_SSID       "Battle_Network"
@@ -38,6 +46,11 @@ DallasTemperature tempSensor(&oneWire);
 Servo myservo;
 const int servoPin = 25;  // GPIO for Servo
 int currentPosition = 0;  // To track current servo position
+
+// Variables for pH calculation
+float voltage;
+float pHValue;
+unsigned long lastSampleTime = 0;
 
 // Create an ESP32 WiFiClient class to connect to the MQTT server.
 WiFiClient client;
@@ -249,13 +262,17 @@ void setup() {
 
   // Set up Time
   setupTime();
-
-  // Seed the random number generator with an analog input (for testing database entries)
-  randomSeed(analogRead(0));
   
   //Print ESP32s IP Address
   Serial.print("IP Address: ");
   Serial.println(WiFi.localIP());
+
+    // Seed the random number generator with an analog input (for testing database entries)
+  randomSeed(analogRead(0));
+
+   // Configure the pin mode for pH sensor as an input
+  pinMode(PH_SENSOR_PIN, INPUT);
+  Serial.println("pH Sensor (SEN0161 V1) ready...");
 
   // Start up the DS18B20 library
   tempSensor.begin();
@@ -332,10 +349,7 @@ void loop() {
   // Ensure MQTT connection
   connectMQTT();
 
-  // Request temperature readings from the sensor(s)  CHECK PLACEMENT!!!
-  tempSensor.requestTemperatures();
-
-  // Check if the interval has passed
+  // Check if the interval has passed before inserting a new entry on the table
   if (currentMillis - previousMillis >= interval) {
     previousMillis = currentMillis;
 
@@ -379,30 +393,37 @@ void loop() {
         Serial.println("Oldest entry deleted successfully.");
       }
     }
-
+     
     // Simulate sensor readings (replace with actual sensor values)
-    //float sensor1Value = random(0, 10000) / 100.0;  // Sensor 1 reading
+    //float temperatureF = random(0, 10000) / 100.0;
+    //String sensor1Timestamp = getTimestamp();
+    // Request temperature readings from the sensor(s) 
+
+    //Read Temperature sensor value 
+    tempSensor.requestTemperatures();
 
     // Fetch temperature in Celsius from the sensor and convert to Farenheit
-    float temperatureC = tempSensor.getTempCByIndex(0);  // Index 0 assumes one sensor is connected
+    // Index 0 assumes one sensor is connected
+    float temperatureC = tempSensor.getTempCByIndex(0);
     float temperatureF = tempSensor.toFahrenheit(temperatureC);
     String sensor1Timestamp = getTimestamp();
-    
-    // Wait 1 second before reading again
-    delay(1000);
 
-    //float sensor1Value = 
-    //String sensor1Timestamp = getTimestamp();
-    
-    float sensor2Value = 19.78;  // Sensor 2 reading
+    // Read the analog value from the pH sensor (10-bit ADC: 0-4095)
+    int analogValue = analogRead(PH_SENSOR_PIN);
+
+    // Convert the analog value (0-4095) to a voltage (0-3.3V)
+    voltage = analogValue * (3.3 / 4095.0);
+
+    // Calculate pH using the formula for pH V1 sensor (usually 3.5 * voltage)
+    pHValue = 3.5 * voltage + OFFSET;
     String sensor2Timestamp = getTimestamp();
     
-    float sensor3Value = 30.12;  // Sensor 3 reading
+    float sensor3Value = random(0, 10000) / 100.0;  // Sensor 3 random reading
     String sensor3Timestamp = getTimestamp();
 
     // Format sensor values to 2 decimal places
     String formattedSensor1 = formatValue(temperatureF);
-    String formattedSensor2 = formatValue(sensor2Value);
+    String formattedSensor2 = formatValue(pHValue);
     String formattedSensor3 = formatValue(sensor3Value);
 
     // Insert the sensor data into the SQLite database
