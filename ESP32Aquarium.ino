@@ -10,13 +10,13 @@
 #include <OneWire.h>
 #include <DallasTemperature.h>// temperature sensor
 
-//************************* VARIABLES *****************************************/
+//********** VARIABLES ***********/
 sqlite3 *db;
 char *zErrMsg = 0;
 int rc;
 unsigned long previousMillis = 0;   // To store the last time you inserted data
 const long interval = 10000;      // Interval between data insertions
-float lastSensor1Value = 0;    //  Global variable to track the last sent Sensor1 value
+float lastSensor1Value = 0;    
 
 //Temperature Sensor
 #define ONE_WIRE_BUS 33       // Data wire is connected to pin 2 on the Arduino
@@ -43,9 +43,11 @@ DallasTemperature tempSensor(&oneWire); // Pass the oneWire reference to DallasT
 #define AIO_KEY         "aio_FXeu11JxZcmPv3ey6r4twxbIyrfH"
 
 /************************** Global State Variables ***************************/
-Servo myservo;
+Servo myServo;
 const int servoPin = 25;  // GPIO for Servo
-int currentPosition = 0;  // To track current servo position
+bool servoActive = false;  // Track if the servo is active
+unsigned long servoMoveStartTime = 0;  // Time when servo started moving
+int servoState = 0;      // Track servo state (0 = idle, 1 = moving to 45 degrees, 2 = returning)
 
 // Variables for pH calculation
 float voltage;
@@ -59,7 +61,7 @@ WiFiClient client;
 Adafruit_MQTT_Client mqtt(&client, AIO_SERVER, AIO_SERVERPORT, AIO_USERNAME, AIO_KEY);
 
 // Setup a feed for controlling the servo motor
-Adafruit_MQTT_Subscribe servoControlFeed = Adafruit_MQTT_Subscribe(&mqtt, AIO_USERNAME "/feeds/servo-control");
+Adafruit_MQTT_Subscribe servoFeed = Adafruit_MQTT_Subscribe(&mqtt, AIO_USERNAME "/feeds/servo-control");
 
 // Define the feed where you will publish sensor data
 Adafruit_MQTT_Publish sensorDataFeed = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "/feeds/temperature-sensor");
@@ -136,7 +138,7 @@ void printTable() {
 
   // Print a header for the table
   Serial.println("------ SensorData Table ------");
-  Serial.println("ID | Sensor1 | Timestamp  | Sensor2 | Timestamp  | Sensor3 | Timestamp");
+  Serial.println("ID | Temperature Sensor1 | Timestamp  | pH Sensor2 | Timestamp  | Turbidity Sensor3 | Timestamp");
 
   // Fetch each row and print the data
   while (sqlite3_step(stmt) == SQLITE_ROW) {
@@ -226,29 +228,36 @@ String fetchNewestEntryAsJson() {
   return jsonResult;
 }
 
-//Button Functions
-//Feeder Action 
-void moveServoSlow(int startAngle, int endAngle) {
-
-  // Move the servo in small steps with a delay to control speed
-  if (startAngle < endAngle) {
-    // Move forward
-    for (int pos = startAngle; pos <= endAngle; pos++) {
-      myservo.write(pos);  // Move the servo to the current position
-      delay(15);           // Wait 30 ms between steps to slow down movement
-    }
-  } else {
-    // Move backward
-    for (int pos = startAngle; pos >= endAngle; pos--) {
-      myservo.write(pos);  // Move the servo to the current position
-      delay(20);           // Wait 15 ms between steps/degree to slow down movement
-    }
+//******************************* Buttons ********************************/:
+// Function to move the servo to 45 degrees, wait 3 seconds, and return to 0 degrees
+void activateServo() {
+  if (!servoActive) {
+    // Move servo to 0 degrees (towards dispensing opening)
+    myServo.write(0);
+    servoActive = true;
+    servoMoveStartTime = millis();  // Record when the movement started
+    servoState = 1;  // Set state to "moving to 45 degrees"
   }
 }
 
+// Function to handle the servo logic
+void handleServoMovement() {
+  unsigned long currentMillis = millis();
 
+  // Check the servo state
+  if (servoState == 1 && currentMillis - servoMoveStartTime >= 3000) {
+    // 3 seconds have passed, return the servo to the original position (45 degrees)
+    myServo.write(45);
+    servoState = 2;  // Set state to "returning"
+  } //else if (servoState == 2 && currentMillis - servoMoveStartTime >= 6000) {
+    else if (servoState == 2) {
+    // Servo has returned, reset to idle state
+    servoState = 0;
+    servoActive = false;
+  }
+}
 
-//***************************************** MAIN LOGIC OF THE PROGRAM ***************************************/
+//***************************** MAIN LOGIC OF THE PROGRAM **********************************/
 void setup() {
 
   Serial.begin(115200);
@@ -272,10 +281,12 @@ void setup() {
 
    // Configure the pin mode for pH sensor as an input
   pinMode(PH_SENSOR_PIN, INPUT);
-  Serial.println("pH Sensor (SEN0161 V1) ready...");
+  //Serial.println("pH Sensor (SEN0161 V1) ready...");
 
   // Start up the DS18B20 library
   tempSensor.begin();
+
+  //************** Insert Turbidity Code Here *************
 
   // Mount SPIFFS
   if (!SPIFFS.begin(true)) {
@@ -340,7 +351,14 @@ void setup() {
   // Print the contents of the table
   printTable();
   
-  //Button Setups
+  // ********** Buttons: Setup Adafruit IO subscription ***********/
+  //Servo Motor
+  mqtt.subscribe(&servoFeed);
+  // Attach the servo to the pin
+  myServo.attach(servoPin);
+  // Initialize the servo to the original position (0 degrees)
+  myServo.write(45);
+
 }
 //******************************** Loop ******************************/ 
 void loop() {
@@ -348,6 +366,21 @@ void loop() {
 
   // Ensure MQTT connection
   connectMQTT();
+
+ // Check for new data from the Adafruit IO feed
+  Adafruit_MQTT_Subscribe *subscription;
+
+  while ((subscription = mqtt.readSubscription(5000))) {
+    if (subscription == &servoFeed) {
+    
+      String data = (char *)servoFeed.lastread;
+
+      // Trigger the servo when "activate" message is received
+      if (data == "activate") {
+        activateServo();  // Call the function to activate the servo
+      }
+    }
+  }
 
   // Check if the interval has passed before inserting a new entry on the table
   if (currentMillis - previousMillis >= interval) {
@@ -394,11 +427,6 @@ void loop() {
       }
     }
      
-    // Simulate sensor readings (replace with actual sensor values)
-    //float temperatureF = random(0, 10000) / 100.0;
-    //String sensor1Timestamp = getTimestamp();
-    // Request temperature readings from the sensor(s) 
-
     //Read Temperature sensor value 
     tempSensor.requestTemperatures();
 
@@ -438,7 +466,7 @@ void loop() {
       Serial.printf("SQL error during data insertion: %s\n", zErrMsg);
       sqlite3_free(zErrMsg);  // Free memory for error message
     } else {
-      Serial.println("Inserted new sensor data successfully.");
+      //Serial.println("Inserted new sensor data successfully.");
     }
 
     // Fetch the newest entry as JSON and print it
@@ -451,7 +479,7 @@ void loop() {
     if (!sensorDataFeed.publish(jsonString)) {
       Serial.println("Failed to send sensor data to Adafruit IO.");
     } else {
-      Serial.println("Sensor data sent to Adafruit IO.");
+      Serial.println("Sensor data sent to Adafruit IO...");
     }
 
     Serial.println(jsonResponse);
@@ -459,4 +487,7 @@ void loop() {
     // Print the table after the insertion or update
     printTable();
   }
+
+   // Handle servo movement asynchronously
+   handleServoMovement();  // Ensure the servo logic runs in the background
 }
