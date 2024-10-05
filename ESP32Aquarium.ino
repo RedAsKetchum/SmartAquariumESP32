@@ -10,6 +10,8 @@
 #include <OneWire.h>
 #include <DallasTemperature.h>// temperature sensor
 
+//NOTE: UPDATE CODE TO SEND SENSOR DATA EVERY 10 SECONDS BUT ONLY INSERT ON TABLE ONCE PER HOUR FOR 24 HOURS!!!
+
 //********** VARIABLES ***********/
 sqlite3 *db;
 char *zErrMsg = 0;
@@ -245,9 +247,9 @@ void handleServoMovement() {
   unsigned long currentMillis = millis();
 
   // Check the servo state
-  if (servoState == 1 && currentMillis - servoMoveStartTime >= 3000) {
-    // 3 seconds have passed, return the servo to the original position (45 degrees)
-    myServo.write(45);
+  if (servoState == 1 && currentMillis - servoMoveStartTime >= 1000) {
+    // 3 seconds have passed, return the servo to the original position (57 degrees)
+    myServo.write(57);
     servoState = 2;  // Set state to "returning"
   } //else if (servoState == 2 && currentMillis - servoMoveStartTime >= 6000) {
     else if (servoState == 2) {
@@ -356,8 +358,8 @@ void setup() {
   mqtt.subscribe(&servoFeed);
   // Attach the servo to the pin
   myServo.attach(servoPin);
-  // Initialize the servo to the original position (0 degrees)
-  myServo.write(45);
+  // Initialize the servo to the original position (57 degrees)
+  myServo.write(57);
 
 }
 //******************************** Loop ******************************/ 
@@ -370,7 +372,7 @@ void loop() {
  // Check for new data from the Adafruit IO feed
   Adafruit_MQTT_Subscribe *subscription;
 
-  while ((subscription = mqtt.readSubscription(5000))) {
+  while ((subscription = mqtt.readSubscription(100))) {
     if (subscription == &servoFeed) {
     
       String data = (char *)servoFeed.lastread;
