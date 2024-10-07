@@ -1,7 +1,12 @@
-#include <WiFi.h>
+#include <Adafruit_NeoPixel.h>
 #include <Adafruit_MQTT.h>
 #include <Adafruit_MQTT_Client.h>
-#include <Adafruit_NeoPixel.h>
+#include <WiFi.h>
+#include <EEPROM.h>  
+
+// ******************** WiFi credentials *******************************
+#define WIFI_SSID       "In Your Area 2G"
+#define WIFI_PASSWORD   "lightfield289"
 
 // ******************** Adafruit IO credentials ************************
 #define AIO_SERVER      "io.adafruit.com"
@@ -9,14 +14,14 @@
 #define AIO_USERNAME    "RedAsKetchum"  // Your Adafruit IO username
 #define AIO_KEY         "aio_FXeu11JxZcmPv3ey6r4twxbIyrfH"  // Your Adafruit IO key
 
-// ******************** WiFi credentials *******************************
-#define WIFI_SSID       "In Your Area 2G"
-#define WIFI_PASSWORD   "lightfield289"
 
 // ******************** NeoPixel strip settings ************************
 #define LED_PIN         18   // Pin where the data line is connected (Din)
 #define NUM_LEDS        150  // Number of LEDs in the strip
 Adafruit_NeoPixel strip = Adafruit_NeoPixel(NUM_LEDS, LED_PIN, NEO_GRB + NEO_KHZ800);
+
+// ******************** EEPROM settings *******************************
+#define EEPROM_SIZE     4    // 3 bytes for RGB, 1 byte for brightness
 
 // ******************** MQTT client setup ******************************
 WiFiClient client;
@@ -57,9 +62,29 @@ void MQTT_connect() {
   Serial.println("Connected to Adafruit IO!");
 }
 
+// ******************** Function to save color and brightness **********
+void saveLastColor(int r, int g, int b, float brightness) {
+  EEPROM.write(0, r);
+  EEPROM.write(1, g);
+  EEPROM.write(2, b);
+  EEPROM.write(3, (int)(brightness * 255));  // Save brightness as an integer (0-255)
+  EEPROM.commit();
+}
+
+// ******************** Function to retrieve last color and brightness from EEPROM ***
+void retrieveLastColor() {
+  lastR = EEPROM.read(0);
+  lastG = EEPROM.read(1);
+  lastB = EEPROM.read(2);
+  globalBrightness = EEPROM.read(3) / 255.0;  // Restore brightness as a float (0-1)
+}
+
 // ******************** Setup function *********************************
 void setup() {
   Serial.begin(115200);
+
+  // Initialize EEPROM to store RGB and brightness values
+  EEPROM.begin(EEPROM_SIZE);
 
   // Connect to WiFi
   connectWiFi();
@@ -68,7 +93,10 @@ void setup() {
   strip.begin();
   strip.show();  // Initialize all pixels to 'off'
 
-  // Set initial color to green
+  // Retrieve last saved color from EEPROM
+  retrieveLastColor();
+
+  // Set initial color
   setLEDColor(lastR, lastG, lastB);
 
   // Subscribe to the Adafruit IO feed
@@ -94,7 +122,7 @@ void loop() {
       } else if (strcmp(controlData, "OFF") == 0) {
         handleOnOff("OFF");
       } else {
-        // If it's not "ON" or "OFF", treat it as RGB values
+        // If it's not "ON" or "OFF", treat it as RGB and brightness values
         handleColorData(controlData);
       }
     }
@@ -104,12 +132,17 @@ void loop() {
 // ******************** Function to handle color data *******************
 void handleColorData(char* data) {
   int r, g, b;
-  sscanf(data, "%d,%d,%d", &r, &g, &b);  // Parse the RGB values
+  float brightness = 1.0;
+  sscanf(data, "%d,%d,%d,%f", &r, &g, &b, &brightness);  // Parse RGB and brightness values
 
-  // Store the last received color values
+  // Store the last received color values and brightness
   lastR = r;
   lastG = g;
   lastB = b;
+  globalBrightness = brightness;
+
+  // Save to EEPROM
+  saveLastColor(r, g, b, brightness);
 
   setLEDColor(r, g, b);
 }
