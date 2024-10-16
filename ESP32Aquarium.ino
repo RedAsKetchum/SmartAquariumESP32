@@ -231,7 +231,6 @@ String fetchNewestEntryAsJson() {
 }
 
 //******************************* Buttons ********************************/:
-// Function to move the servo to 45 degrees, wait 3 seconds, and return to 0 degrees
 void activateServo() {
   if (!servoActive) {
     // Move servo to 0 degrees (towards dispensing opening)
@@ -247,9 +246,10 @@ void handleServoMovement() {
   unsigned long currentMillis = millis();
 
   // Check the servo state
-  if (servoState == 1 && currentMillis - servoMoveStartTime >= 1000) {
-    // 3 seconds have passed, return the servo to the original position (57 degrees)
+  if (servoState == 1 && currentMillis - servoMoveStartTime >= 500) {
+    //  Half a second have passed, return the servo to the original position (57 degrees)
     myServo.write(57);
+    servoMoveStartTime = currentMillis;  // Reset the timer for returning to 0 degrees 
     servoState = 2;  // Set state to "returning"
   } //else if (servoState == 2 && currentMillis - servoMoveStartTime >= 6000) {
     else if (servoState == 2) {
