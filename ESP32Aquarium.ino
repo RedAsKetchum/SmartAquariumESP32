@@ -231,7 +231,7 @@ String fetchNewestEntryAsJson() {
     jsonResult += "\"Sensor2\":" + formatValue(sensor2) + ",";
     jsonResult += "\"Sensor2Timestamp\":\"" + String((char*)sensor2Timestamp) + "\",";
     jsonResult += "\"Sensor3\":" + formatValue(sensor3) + ",";
-    jsonResult += "\"Sensor3Timestamp\":\"" + String((char*)sensor3Timestamp) + "\"";
+    jsonResult += "\"Sensor3Timestamp\":\"" + String((char*)sensor3Timestamp) + "\",";
     jsonResult += "\"Date\":\"" + String((char*)date) + "\"";  // Add the Date field to the JSON
 
   } else {
