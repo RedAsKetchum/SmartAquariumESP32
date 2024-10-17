@@ -140,7 +140,7 @@ void printTable() {
 
   // Print a header for the table
   Serial.println("------ SensorData Table ------");
-  Serial.println("ID | Temperature Sensor1 | Timestamp  | pH Sensor2 | Timestamp  | Turbidity Sensor3 | Timestamp");
+  Serial.println("ID | Temperature Sensor1 | Timestamp  | pH Sensor2 | Timestamp  | Turbidity Sensor3 | Timestamp | Date");
 
   // Fetch each row and print the data
   while (sqlite3_step(stmt) == SQLITE_ROW) {
@@ -151,10 +151,13 @@ void printTable() {
     const unsigned char* sensor2Timestamp = sqlite3_column_text(stmt, 4);
     float sensor3 = sqlite3_column_double(stmt, 5);
     const unsigned char* sensor3Timestamp = sqlite3_column_text(stmt, 6);
+
+
+    const unsigned char* date = sqlite3_column_text(stmt, 7);  // Get the Date column
     
     //Prints Table on serial monitor
-    Serial.printf("%d  | %.2f   | %s   | %.2f   | %s   | %.2f   | %s\n", 
-                  id, sensor1, sensor1Timestamp, sensor2, sensor2Timestamp, sensor3, sensor3Timestamp);
+    Serial.printf("%d  | %.2f   | %s   | %.2f   | %s   | %.2f   | %s   |  %s\n", 
+                  id, sensor1, sensor1Timestamp, sensor2, sensor2Timestamp, sensor3, sensor3Timestamp, date);
   }
   
   // Finalize the statement
@@ -168,6 +171,15 @@ String getTimestamp() {
   struct tm* timeInfo = localtime(&now);
   char buffer[9];  // Adjust buffer size for just the time
   strftime(buffer, sizeof(buffer), "%I:%M %p", timeInfo);  // Format only the time
+  return String(buffer);
+}
+
+//Function to get the current Date in format MM.DD
+String getFormattedDate() {
+  time_t now = time(nullptr);
+  struct tm* timeInfo = localtime(&now);
+  char buffer[6];  // Buffer to hold the formatted date
+  strftime(buffer, sizeof(buffer), "%m.%d", timeInfo);  // Format the date as MM.DD
   return String(buffer);
 }
 
@@ -187,7 +199,7 @@ void setupTime() {
 // Function to fetch the newest entry for sensor data and return it as JSON
 String fetchNewestEntryAsJson() {
   const char* sqlSelectNewestEntry = 
-    "SELECT ID, Sensor1, Sensor1Timestamp, Sensor2, Sensor2Timestamp, Sensor3, Sensor3Timestamp "
+    "SELECT ID, Sensor1, Sensor1Timestamp, Sensor2, Sensor2Timestamp, Sensor3, Sensor3Timestamp, Date "
     "FROM SensorData ORDER BY ID DESC LIMIT 1;";  // Query to fetch the newest entry
   
   sqlite3_stmt* stmt;
@@ -210,7 +222,8 @@ String fetchNewestEntryAsJson() {
     const unsigned char* sensor2Timestamp = sqlite3_column_text(stmt, 4);
     float sensor3 = sqlite3_column_double(stmt, 5);
     const unsigned char* sensor3Timestamp = sqlite3_column_text(stmt, 6);
-
+    const unsigned char* date = sqlite3_column_text(stmt, 7);
+ 
     // Format the JSON data
     jsonResult += "\"ID\":" + String(id) + ",";
     jsonResult += "\"Sensor1\":" + formatValue(sensor1) + ",";
@@ -219,8 +232,10 @@ String fetchNewestEntryAsJson() {
     jsonResult += "\"Sensor2Timestamp\":\"" + String((char*)sensor2Timestamp) + "\",";
     jsonResult += "\"Sensor3\":" + formatValue(sensor3) + ",";
     jsonResult += "\"Sensor3Timestamp\":\"" + String((char*)sensor3Timestamp) + "\"";
+    jsonResult += "\"Date\":\"" + String((char*)date) + "\"";  // Add the Date field to the JSON
+
   } else {
-    return "{}";  // Return empty JSON if no data is found
+    return "{}";  // Return empty JSON if no Fdata is found
   }
 
   jsonResult += "}";
@@ -289,6 +304,9 @@ void setup() {
   tempSensor.begin();
 
   //************** Insert Turbidity Code Here *************
+  
+  //Manual format in case of corruption
+  //SPIFFS.format();
 
   // Mount SPIFFS
   if (!SPIFFS.begin(true)) {
@@ -331,25 +349,34 @@ void setup() {
   Serial.printf("Available heap: %d bytes\n", ESP.getFreeHeap());
 
   // SQL query to create a table with separate timestamps for each sensor
-  const char *sql = 
-    "CREATE TABLE IF NOT EXISTS SensorData ("
-    "ID INTEGER PRIMARY KEY, "  // Simplified without AUTOINCREMENT
-    "Sensor1 REAL, "
-    "Sensor1Timestamp TEXT, "
-    "Sensor2 REAL, "
-    "Sensor2Timestamp TEXT, "
-    "Sensor3 REAL, "
-    "Sensor3Timestamp TEXT);";
-  
-  // Execute the SQL query to create the table
-  rc = sqlite3_exec(db, sql, 0, 0, &zErrMsg);
-  if (rc != SQLITE_OK) {
-    Serial.printf("SQL error: %s\n", zErrMsg);
-    sqlite3_free(zErrMsg);
-  } else {
-    Serial.println("Table created successfully");
-  }
+const char *sql = 
+  "CREATE TABLE IF NOT EXISTS SensorData ("
+  "ID INTEGER PRIMARY KEY, "  // Simplified without AUTOINCREMENT
+  "Sensor1 REAL, "
+  "Sensor1Timestamp TEXT, "
+  "Sensor2 REAL, "
+  "Sensor2Timestamp TEXT, "
+  "Sensor3 REAL, "
+  "Sensor3Timestamp TEXT, "
+  "Date TEXT);";  // New Date column added
 
+// Execute the SQL query to create the table
+rc = sqlite3_exec(db, sql, 0, 0, &zErrMsg);
+if (rc != SQLITE_OK) {
+  Serial.printf("SQL error: %s\n", zErrMsg);
+  sqlite3_free(zErrMsg);
+} else {
+  Serial.println("Table created successfully");
+}
+
+// const char* sqlUpdateNullDates = "UPDATE SensorData SET Date = '00.00' WHERE Date IS NULL;";
+// rc = sqlite3_exec(db, sqlUpdateNullDates, 0, 0, &zErrMsg);
+// if (rc != SQLITE_OK) {
+//   Serial.printf("SQL error during updating NULL dates: %s\n", zErrMsg);
+//   sqlite3_free(zErrMsg);
+// } else {
+//   Serial.println("Updated NULL dates successfully.");
+// }
   // Print the contents of the table
   printTable();
   
@@ -456,11 +483,15 @@ void loop() {
     String formattedSensor2 = formatValue(pHValue);
     String formattedSensor3 = formatValue(sensor3Value);
 
-    // Insert the sensor data into the SQLite database
-    String sqlInsert = "INSERT INTO SensorData (Sensor1, Sensor1Timestamp, Sensor2, Sensor2Timestamp, Sensor3, Sensor3Timestamp) VALUES (" +
-                       formattedSensor1 + ", '" + sensor1Timestamp + "', " + 
-                       formattedSensor2 + ", '" + sensor2Timestamp + "', " + 
-                       formattedSensor3 + ", '" + sensor3Timestamp + "');";
+    // Get the current date formatted as MM.DD
+    String formattedDate = getFormattedDate();
+    
+    // Insert the sensor data and the formatted date into the SQLite database
+   String sqlInsert = "INSERT INTO SensorData (Sensor1, Sensor1Timestamp, Sensor2, Sensor2Timestamp, Sensor3, Sensor3Timestamp, Date) VALUES (" +
+                   formattedSensor1 + ", '" + sensor1Timestamp + "', " + 
+                   formattedSensor2 + ", '" + sensor2Timestamp + "', " + 
+                   formattedSensor3 + ", '" + sensor3Timestamp + "', '" + 
+                   formattedDate + "');";
 
     // Execute the SQL insert command
     rc = sqlite3_exec(db, sqlInsert.c_str(), 0, 0, &zErrMsg);
