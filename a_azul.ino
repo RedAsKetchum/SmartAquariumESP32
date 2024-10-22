@@ -5,8 +5,9 @@
 #include <EEPROM.h>
 #include "time.h"
 #include <ArduinoJson.h>
-#include <HTTPClient.h>  // Include the HTTP library
-#include <algorithm>  // Include algorithm for sorting
+#include <HTTPClient.h>  
+#include <algorithm>  
+#include "AdafruitIO_WiFi.h"
 
 // ******************** WiFi credentials *******************************
 #define WIFI_SSID       "In Your Area-2G"
@@ -30,6 +31,8 @@ Adafruit_NeoPixel strip = Adafruit_NeoPixel(NUM_LEDS, LED_PIN, NEO_GRB + NEO_KHZ
 // EEPROM settings
 #define EEPROM_SIZE     4     // 3 bytes for RGB, 1 byte for brightness
 
+AdafruitIO_WiFi io(AIO_USERNAME, AIO_KEY, WIFI_SSID, WIFI_PASSWORD);
+
 // MQTT client setup
 WiFiClient client;
 Adafruit_MQTT_Client mqtt(&client, AIO_SERVER, AIO_SERVERPORT, AIO_USERNAME, AIO_KEY);
@@ -37,6 +40,7 @@ Adafruit_MQTT_Client mqtt(&client, AIO_SERVER, AIO_SERVERPORT, AIO_USERNAME, AIO
 // MQTT feeds
 Adafruit_MQTT_Subscribe colorFeed = Adafruit_MQTT_Subscribe(&mqtt, AIO_USERNAME "/feeds/led-control");
 Adafruit_MQTT_Subscribe scheduleFeed = Adafruit_MQTT_Subscribe(&mqtt, AIO_USERNAME "/feeds/feeding-schedule");
+AdafruitIO_Feed *rebootFeed = io.feed("reboot-action");
 
 struct Schedule {
     String time;
@@ -70,7 +74,7 @@ bool compareSchedules(const Schedule &a, const Schedule &b);
 int timeToMinutes(String timeStr);
 void fetchSchedulesFromAdafruitIO();
 int findScheduleByID(String id);
-void updateScheduleInAdafruitIO(String id, bool executed, bool enabled, String time, String days);
+void updateScheduleInAdafruitIO(String id, bool executed, bool enabled, String time, String days, bool ledStatus);
 String getDayAbbreviation(const char* fullDay);
 void addSchedule(String time, String days, bool enabled, String id, bool executed);
 void deleteSchedule(int index);
@@ -81,6 +85,7 @@ int findScheduleByTimeAndDays(String time, String days);
 void checkScheduleAndControlLED();
 void resetExecutedFlagsIfNewDay();
 bool compareSchedulesForChanges(const Schedule &localSchedule, const Schedule &newSchedule);
+void sendLEDStateToAdafruitIO(bool state);
 
 // LED Settings
 void retrieveLastColor();
@@ -89,3 +94,6 @@ void handleColorData(char* data);
 void setLEDColor(int r, int g, int b);
 void handleOnOff(const char* data);
 void adjustBrightness(float brightness);
+
+// Reboot
+void handleRebootCommand(AdafruitIO_Data *data);

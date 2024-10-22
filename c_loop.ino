@@ -1,9 +1,11 @@
-#include <HTTPClient.h> 
 void loop() {
-  // Ensure we are connected to Adafruit IO
+  // Keep the connection to Adafruit IO alive
+  io.run();
+
+  // Ensure we are connected to Adafruit IO using MQTT
   MQTT_connect();
 
-  // Process any incoming messages
+  // Process any incoming messages from Adafruit IO
   Adafruit_MQTT_Subscribe *subscription;
   while ((subscription = mqtt.readSubscription(5000))) {
     // Handle color feed subscription
@@ -49,4 +51,12 @@ void loop() {
     fetchSchedulesFromAdafruitIO();
     lastFetch = now;
   }
+
+  // Check if Wi-Fi is connected, and reconnect if necessary
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("WiFi not connected! Attempting to reconnect...");
+    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  }
+
+  delay(2000);  // Short delay to avoid flooding serial output
 }

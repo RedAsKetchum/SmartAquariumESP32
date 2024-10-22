@@ -425,4 +425,3 @@ bool compareSchedulesForChanges(const Schedule &localSchedule, const Schedule &n
          (localSchedule.days == newSchedule.days) && 
          (localSchedule.enabled == newSchedule.enabled);
 }
-
