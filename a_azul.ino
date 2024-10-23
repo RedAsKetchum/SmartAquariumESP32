@@ -8,6 +8,11 @@
 #include <HTTPClient.h>  
 #include <algorithm>  
 #include "AdafruitIO_WiFi.h"
+#include <SPIFFS.h>
+#include <sqlite3.h>
+#include <ESP32Servo.h>
+#include <OneWire.h>
+#include <DallasTemperature.h>
 
 // ******************** WiFi credentials *******************************
 #define WIFI_SSID       "In Your Area-2G"
@@ -41,6 +46,8 @@ Adafruit_MQTT_Client mqtt(&client, AIO_SERVER, AIO_SERVERPORT, AIO_USERNAME, AIO
 Adafruit_MQTT_Subscribe colorFeed = Adafruit_MQTT_Subscribe(&mqtt, AIO_USERNAME "/feeds/led-control");
 Adafruit_MQTT_Subscribe scheduleFeed = Adafruit_MQTT_Subscribe(&mqtt, AIO_USERNAME "/feeds/feeding-schedule");
 AdafruitIO_Feed *rebootFeed = io.feed("reboot-action");
+Adafruit_MQTT_Subscribe servoFeed = Adafruit_MQTT_Subscribe(&mqtt, AIO_USERNAME "/feeds/servo-control");
+Adafruit_MQTT_Publish sensorDataFeed = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "/feeds/temperature-sensor");
 
 struct Schedule {
     String time;
@@ -62,6 +69,37 @@ const unsigned long checkInterval = 60000;  // Check every minute
 Schedule schedules[10];  // Array to store up to 10 schedules
 int scheduleCount = 0;   // Keep track of how many schedules are stored
 
+//Chris' Variables
+sqlite3 *db;
+char *zErrMsg = 0;
+int rc;
+unsigned long previousMillis = 0;   // To store the last time you inserted data
+const long interval = 10000;      // Interval between data insertions
+float lastSensor1Value = 0;  
+
+//Temperature Sensor
+#define ONE_WIRE_BUS 33       // Data wire is connected to pin 2 on the Arduino
+OneWire oneWire(ONE_WIRE_BUS);// Setup a oneWire instance to communicate with any OneWire devices
+DallasTemperature tempSensor(&oneWire); // Pass the oneWire reference to DallasTemperature library
+
+//pH Sensor
+// Define the pin where the pH sensor is connected
+#define PH_SENSOR_PIN 34  // GPIO34 (ADC pin) of ESP32 for analog input
+
+// Calibration values for pH sensor V1 (adjust if necessary)
+#define OFFSET 0.00         // pH offset for calibration
+#define SAMPLING_INTERVAL 1000  // Interval for pH reading (1 second)  
+
+Servo myServo;
+const int servoPin = 25;  // GPIO for Servo
+bool servoActive = false;  // Track if the servo is active
+unsigned long servoMoveStartTime = 0;  // Time when servo started moving
+int servoState = 0;      // Track servo state (0 = idle, 1 = moving to 45 degrees, 2 = returning)
+
+// Variables for pH calculation
+float voltage;
+float pHValue;
+unsigned long lastSampleTime = 0;
 
 // Connect
 void connectWiFi();
@@ -74,7 +112,7 @@ bool compareSchedules(const Schedule &a, const Schedule &b);
 int timeToMinutes(String timeStr);
 void fetchSchedulesFromAdafruitIO();
 int findScheduleByID(String id);
-void updateScheduleInAdafruitIO(String id, bool executed, bool enabled, String time, String days, bool ledStatus);
+void updateScheduleInAdafruitIO(String id, bool executed, bool enabled, String time, String days);
 String getDayAbbreviation(const char* fullDay);
 void addSchedule(String time, String days, bool enabled, String id, bool executed);
 void deleteSchedule(int index);
@@ -97,3 +135,13 @@ void adjustBrightness(float brightness);
 
 // Reboot
 void handleRebootCommand(AdafruitIO_Data *data);
+
+//Chris'
+float getCurrentSensor1Value();
+String formatValue(float value);
+String getTimestamp();
+String getFormattedDate();
+void setupTime();
+String fetchNewestEntryAsJson();
+void activateServo();
+void handleServoMovement();

@@ -5,7 +5,7 @@ void connectWiFi() {
     delay(500);
     Serial.print(".");
   }
-  Serial.println("WiFi connected. IP address: ");
+  Serial.println(F("WiFi connected. IP address: "));
   Serial.println(WiFi.localIP());  // Print the IP address
 }
 
@@ -22,12 +22,6 @@ void MQTT_connect() {
     mqtt.disconnect();
     delay(5000);  // Wait 5 seconds before retrying
   }
-  Serial.println("Connected to Adafruit IO!");
+  Serial.println(F("Connected to Adafruit IO!"));
 
-  // Subscribe to feeds after connection
-  if (mqtt.subscribe(&scheduleFeed)) {
-    Serial.println("Subscribed to Schedule Feed.");
-  } else {
-    Serial.println("Failed to subscribe to Schedule Feed.");
-  }
 }

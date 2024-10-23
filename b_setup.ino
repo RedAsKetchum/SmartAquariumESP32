@@ -7,7 +7,7 @@ void setup() {
 
     // Connect to Wi-Fi
     WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-    Serial.println("Connecting to Wi-Fi...");
+    Serial.println(F("Connecting to Wi-Fi..."));
     
     // Wait for the connection to complete
     while (WiFi.status() != WL_CONNECTED) {
@@ -16,7 +16,7 @@ void setup() {
     }
     
     // When connected, print the IP address
-    Serial.println("\nWi-Fi connected!");
+    Serial.println(F("\nWi-Fi connected!"));
     Serial.print("IP Address: ");
     Serial.println(WiFi.localIP());  // Display the IP address of the ESP32
 
@@ -45,7 +45,7 @@ void setup() {
         delay(500);
     }
 
-    Serial.println("\nConnected to Adafruit IO!");
+    Serial.println(F("\nConnected to Adafruit IO!"));
 
     // Fetch and sort schedules from Adafruit IO
     fetchSchedulesFromAdafruitIO();
@@ -55,6 +55,6 @@ void setup() {
     mqtt.subscribe(&colorFeed);
     mqtt.subscribe(&scheduleFeed);
 
-    Serial.println("LEDs initialized and turned ON.");
+    Serial.println(F("LEDs initialized and turned ON."));
    
 }
