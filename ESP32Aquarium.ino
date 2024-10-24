@@ -369,14 +369,6 @@ if (rc != SQLITE_OK) {
   Serial.println("Table created successfully");
 }
 
-// const char* sqlUpdateNullDates = "UPDATE SensorData SET Date = '00.00' WHERE Date IS NULL;";
-// rc = sqlite3_exec(db, sqlUpdateNullDates, 0, 0, &zErrMsg);
-// if (rc != SQLITE_OK) {
-//   Serial.printf("SQL error during updating NULL dates: %s\n", zErrMsg);
-//   sqlite3_free(zErrMsg);
-// } else {
-//   Serial.println("Updated NULL dates successfully.");
-// }
   // Print the contents of the table
   printTable();
   
