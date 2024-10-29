@@ -72,7 +72,7 @@ void loop() {
           // Retrieve values from the JSON object
           temperatureMin = doc["temperatureMin"];
           temperatureMax = doc["temperatureMax"];
-          turbidityMin = doc["turbidityMin"];
+          //turbidityMin = doc["turbidityMin"];
           turbidityMax = doc["turbidityMax"];
           pHMin = doc["pHMin"];
           pHMax = doc["pHMax"];
@@ -80,7 +80,7 @@ void loop() {
           // Print the received values
           Serial.println("Temperature Min: " + String(temperatureMin));
           Serial.println("Temperature Max: " + String(temperatureMax));
-          Serial.println("Turbidity Min: " + String(turbidityMin));
+          //Serial.println("Turbidity Min: " + String(turbidityMin));
           Serial.println("Turbidity Max: " + String(turbidityMax));
           Serial.println("pH Min: " + String(pHMin));
           Serial.println("pH Max: " + String(pHMax));
