@@ -137,3 +137,37 @@ String fetchNewestEntryAsJson() {
   sqlite3_finalize(stmt);
   return jsonResult;
 }
+
+  // Function to check sensor values against thresholds
+  void checkSensorValues(float temperatureF, float pHValue, float turbidityValue) {
+      // Check temperature
+      if (temperatureF < temperatureMin || temperatureF > temperatureMax) {
+          // Send alert for temperature
+          if (notifications.publish("temperature alert")) {
+              Serial.println("Alert sent for temperature: alert");
+          } else {
+              Serial.println("Failed to send alert for temperature");
+          }
+      }
+
+      // Check pH
+      if (pHValue < pHMin || pHValue > pHMax) {
+          // Send alert for pH
+          if (notifications.publish("pH alert")) {
+              Serial.println("Alert sent for pH: alert");
+          } else {
+              Serial.println("Failed to send alert for pH");
+          }
+      }
+
+      // Check turbidity
+      if (turbidityValue < turbidityMin || turbidityValue > turbidityMax) {
+          // Send alert for turbidity
+          if (notifications.publish("turbidity alert")) {
+              Serial.println("Alert sent for turbidity: alert");
+          } else {
+              Serial.println("Failed to send alert for turbidity");
+          }
+      }
+  }
+

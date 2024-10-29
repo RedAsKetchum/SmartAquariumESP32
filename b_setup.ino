@@ -11,6 +11,9 @@ void setup() {
     // Set up Time
     setupTime();  // Assuming you have a custom function for setting up time
     configTzTime(timeZone, ntpServer);
+
+    // Connect to Adafruit IO
+    io.connect();
     
     // Seed the random number generator with an analog input (for testing database entries)
     randomSeed(analogRead(0));
@@ -93,6 +96,9 @@ void setup() {
     myServo.attach(servoPin);
     myServo.write(57);  // Initialize the servo to the original position (57 degrees)
 
+    //Sensor Limits
+    mqtt.subscribe(&sensorSettingsFeed); // Subscribe to the sensor-settings feed
+
     // Initialize EEPROM to store RGB and brightness values
     EEPROM.begin(EEPROM_SIZE);
 
@@ -105,9 +111,6 @@ void setup() {
     // Initialize the LED strip
     strip.begin();
     strip.show();  // Initialize all pixels to 'off'
-
-    // Connect to Adafruit IO
-    io.connect();
 
     // Set up a message handler for the reboot command feed
     rebootFeed->onMessage(handleRebootCommand);
@@ -127,7 +130,7 @@ void setup() {
     // Subscribe to Adafruit IO feeds
     mqtt.subscribe(&colorFeed);
     mqtt.subscribe(&scheduleFeed);
-
+    
     Serial.println(F("LEDs initialized and turned ON."));
     
     // Print available heap memory
