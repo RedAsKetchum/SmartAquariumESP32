@@ -15,8 +15,8 @@
 #include <DallasTemperature.h>
 
 // ******************** WiFi credentials *******************************
-#define WIFI_SSID       "In Your Area-2G"
-#define WIFI_PASSWORD   "lightfield289"
+#define WIFI_SSID       "Battle_Network"
+#define WIFI_PASSWORD   "Pandy218!"
 
 // NTP server to request time
 const char* ntpServer = "pool.ntp.org";
@@ -48,6 +48,8 @@ Adafruit_MQTT_Subscribe scheduleFeed = Adafruit_MQTT_Subscribe(&mqtt, AIO_USERNA
 AdafruitIO_Feed *rebootFeed = io.feed("reboot-action");
 Adafruit_MQTT_Subscribe servoFeed = Adafruit_MQTT_Subscribe(&mqtt, AIO_USERNAME "/feeds/servo-control");
 Adafruit_MQTT_Publish sensorDataFeed = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "/feeds/temperature-sensor");
+Adafruit_MQTT_Subscribe sensorSettingsFeed = Adafruit_MQTT_Subscribe(&mqtt, AIO_USERNAME "/feeds/sensor-settings");
+Adafruit_MQTT_Publish notifications = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "/feeds/notifications"); 
 
 struct Schedule {
     String time;

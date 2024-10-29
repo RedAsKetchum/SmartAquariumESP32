@@ -137,3 +137,63 @@ String fetchNewestEntryAsJson() {
   sqlite3_finalize(stmt);
   return jsonResult;
 }
+
+ // Function to check sensor values against thresholds
+  void checkSensorValues(float temperatureF, float pHValue, float turbidityValue) {
+      // Check if temperature is below minimum
+      if (temperatureF < temperatureMin) {
+          // Send alert for low temperature
+          if (notifications.publish("low temperature")) {
+              //Serial.println("Alert sent for low temperature");
+          } else {
+              Serial.println("Failed to send alert for low temperature");
+          }
+      }
+      // Check if temperature is above maximum
+      if (temperatureF > temperatureMax) {
+          // Send alert for high temperature
+          if (notifications.publish("high temperature")) {
+              //Serial.println("Alert sent for high temperature");
+          } else {
+              Serial.println("Failed to send alert for high temperature");
+          }
+      }
+      // Check if pH is below minimum
+      if (pHValue < pHMin) {
+          // Send alert for low pH
+          if (notifications.publish("low pH")) {
+              //Serial.println("Alert sent for low pH");
+          } else {
+              Serial.println("Failed to send alert for low pH");
+          }
+      }
+      // Check if pH is above maximum
+      if (pHValue > pHMax) {
+          // Send alert for high pH
+          if (notifications.publish("high pH")) {
+              //Serial.println("Alert sent for high pH");
+          } else {
+              Serial.println("Failed to send alert for high pH");
+          }
+      }
+      // // Check if turbidity is below minimum
+      // if (turbidityValue < turbidityMin) {
+      //     // Send alert for low turbidity
+      //     if (notifications.publish("low turbidity")) { //this doesnt make sense
+      //         //Serial.println("Alert sent for low turbidity");
+      //     } else {
+      //         Serial.println("Failed to send alert for low turbidity");
+      //     }
+      // }
+      // Check if turbidity is above maximum
+      if (turbidityValue > turbidityMax) {
+          // Send alert for high turbidity
+          if (notifications.publish("high turbidity")) {
+              //Serial.println("Alert sent for high turbidity");
+          } else {
+              Serial.println("Failed to send alert for high turbidity");
+          }
+      }
+  }
+
+

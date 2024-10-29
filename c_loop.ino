@@ -1,15 +1,23 @@
+float temperatureMin;
+float temperatureMax;
+float turbidityMin;
+float turbidityMax;
+float pHMin;
+float pHMax;
+
 void loop() {
   unsigned long currentMillis = millis();
 
   // Keep the connection to Adafruit IO alive
   io.run();
 
-  // Ensure we are connected to Adafruit IO using MQTT
+  // Ensure we are connected to Adafruit IO using MQTT //Handle reconnection 
   MQTT_connect();
 
   // Process any incoming messages from Adafruit IO
   Adafruit_MQTT_Subscribe *subscription;
-  while ((subscription = mqtt.readSubscription(5000))) {
+
+  while ((subscription = mqtt.readSubscription(100))) {
     // Handle color feed subscription
     if (subscription == &colorFeed) {
       char *controlData = (char *)colorFeed.lastread;
@@ -44,6 +52,39 @@ void loop() {
         activateServo();  // Call the function to activate the servo
       }
     }
+
+    if (subscription == &sensorSettingsFeed) { //reads the sensor settings user set limits
+          Serial.print("Received sensor settings data: ");
+          String jsonString = (char *)sensorSettingsFeed.lastread;
+          Serial.println(jsonString);
+
+          // Parse the JSON string
+          DynamicJsonDocument doc(1024); // Adjust size as needed
+          DeserializationError error = deserializeJson(doc, jsonString);
+
+          // Check for errors in parsing
+          if (error) {
+            Serial.print("Failed to parse JSON: ");
+            Serial.println(error.f_str());
+            return;
+          }
+
+          // Retrieve values from the JSON object
+          temperatureMin = doc["temperatureMin"];
+          temperatureMax = doc["temperatureMax"];
+          //turbidityMin = doc["turbidityMin"];
+          turbidityMax = doc["turbidityMax"];
+          pHMin = doc["pHMin"];
+          pHMax = doc["pHMax"];
+
+          // Print the received values
+          Serial.println("Temperature Min: " + String(temperatureMin));
+          Serial.println("Temperature Max: " + String(temperatureMax));
+          //Serial.println("Turbidity Min: " + String(turbidityMin));
+          Serial.println("Turbidity Max: " + String(turbidityMax));
+          Serial.println("pH Min: " + String(pHMin));
+          Serial.println("pH Max: " + String(pHMax));
+        }
   }
 
   // Reset executed flags if a new day has started
@@ -117,13 +158,13 @@ void loop() {
     String sensor2Timestamp = getTimestamp();
 
     // Random value for another sensor
-    float sensor3Value = random(0, 10000) / 100.0;
+    float turbidityValue = random(0, 10000) / 100.0;
     String sensor3Timestamp = getTimestamp();
 
     // Format sensor values to 2 decimal places
     String formattedSensor1 = formatValue(temperatureF);
     String formattedSensor2 = formatValue(pHValue);
-    String formattedSensor3 = formatValue(sensor3Value);
+    String formattedSensor3 = formatValue(turbidityValue);
 
     // Get the current date formatted as MM.DD
     String formattedDate = getFormattedDate();
@@ -151,9 +192,13 @@ void loop() {
     } else {
       Serial.println(F("Sensor data sent to Adafruit IO..."));
     }
-
+    
+    //Display sensor's json data
     Serial.println(jsonResponse);
 
+    //Check if sensor values exceed thresholds and notify the user. Limits set by the user.
+    checkSensorValues(temperatureF, pHValue, turbidityValue); 
+    
     // Print the table after the insertion or update
     printTable();
   }
@@ -167,5 +212,5 @@ void loop() {
     WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
   }
 
-  delay(2000);  // Short delay to avoid flooding serial output
+  //delay(2000);  // Short delay to avoid flooding serial output
 }
