@@ -15,8 +15,8 @@
 #include <DallasTemperature.h>
 
 // ******************** WiFi credentials *******************************
-#define WIFI_SSID       "Battle_Network"
-#define WIFI_PASSWORD   "Pandy218!"
+#define WIFI_SSID       "In Your Area-2G"
+#define WIFI_PASSWORD   "lightfield289"
 
 // NTP server to request time
 const char* ntpServer = "pool.ntp.org";
@@ -46,6 +46,7 @@ Adafruit_MQTT_Client mqtt(&client, AIO_SERVER, AIO_SERVERPORT, AIO_USERNAME, AIO
 Adafruit_MQTT_Subscribe colorFeed = Adafruit_MQTT_Subscribe(&mqtt, AIO_USERNAME "/feeds/led-control");
 Adafruit_MQTT_Subscribe scheduleFeed = Adafruit_MQTT_Subscribe(&mqtt, AIO_USERNAME "/feeds/feeding-schedule");
 AdafruitIO_Feed *rebootFeed = io.feed("reboot-action");
+AdafruitIO_Feed *formatFeed = io.feed("format-action");
 Adafruit_MQTT_Subscribe servoFeed = Adafruit_MQTT_Subscribe(&mqtt, AIO_USERNAME "/feeds/servo-control");
 Adafruit_MQTT_Publish sensorDataFeed = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "/feeds/temperature-sensor");
 Adafruit_MQTT_Subscribe sensorSettingsFeed = Adafruit_MQTT_Subscribe(&mqtt, AIO_USERNAME "/feeds/sensor-settings");
@@ -56,7 +57,9 @@ struct Schedule {
     String days;
     String id;
     bool enabled;
-    bool executed;  // New flag to track if the schedule has been executed
+    bool executed;
+    String device;
+    int scheduledDispenses;
 };
 
 // Global variables
@@ -67,9 +70,10 @@ String scheduledTime = "";      // Time set in the schedule
 String scheduledDays = "";      // Days set in the schedule
 bool scheduleEnabled = false;   // State of the schedule toggle switch
 unsigned long lastCheck = 0;  // Track the last time the schedule was checked
-const unsigned long checkInterval = 60000;  // Check every minute
+const unsigned long checkInterval = 2000;  
 Schedule schedules[10];  // Array to store up to 10 schedules
 int scheduleCount = 0;   // Keep track of how many schedules are stored
+int remainingDispenses[10]; 
 
 //Chris' Variables
 sqlite3 *db;
@@ -107,25 +111,27 @@ unsigned long lastSampleTime = 0;
 void connectWiFi();
 void MQTT_connect();
 
-// LED Schedule
+// Schedule
 void sortSchedules();
 void printAllEnabledSchedules();
 bool compareSchedules(const Schedule &a, const Schedule &b);
 int timeToMinutes(String timeStr);
 void fetchSchedulesFromAdafruitIO();
 int findScheduleByID(String id);
-void updateScheduleInAdafruitIO(String id, bool executed, bool enabled, String time, String days);
+void updateScheduleInAdafruitIO(String id, bool executed, bool enabled, String time, String days, String device, int scheduledDispenses);
 String getDayAbbreviation(const char* fullDay);
-void addSchedule(String time, String days, bool enabled, String id, bool executed);
+void addSchedule(String time, String days, bool enabled, String id, bool executed, String device, int scheduledDispenses);
 void deleteSchedule(int index);
 void printAllSchedules();
 void retryFetchingSchedules();
 void handleScheduleData(char* scheduleData);
 int findScheduleByTimeAndDays(String time, String days);
-void checkScheduleAndControlLED();
+void checkScheduleAndControlDevices();
 void resetExecutedFlagsIfNewDay();
 bool compareSchedulesForChanges(const Schedule &localSchedule, const Schedule &newSchedule);
 void sendLEDStateToAdafruitIO(bool state);
+
+void initializeDatabase();
 
 // LED Settings
 void retrieveLastColor();
@@ -137,6 +143,8 @@ void adjustBrightness(float brightness);
 
 // Reboot
 void handleRebootCommand(AdafruitIO_Data *data);
+// Format
+void handleFormatCommand(AdafruitIO_Data *data);
 
 //Chris'
 float getCurrentSensor1Value();

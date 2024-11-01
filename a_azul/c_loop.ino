@@ -92,7 +92,7 @@ void loop() {
 
   // Check and control LEDs based on the schedule
   if (scheduleCount > 0) {
-    checkScheduleAndControlLED();
+    checkScheduleAndControlDevices();
   }
 
   // Periodically fetch schedules to update IDs every 60 seconds

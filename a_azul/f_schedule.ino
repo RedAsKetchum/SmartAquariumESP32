@@ -4,10 +4,15 @@ void sortSchedules() {
 }
 
 void printAllEnabledSchedules() {
-  Serial.println("Enabled Schedules:");
-  for (int i = 0; i < scheduleCount; i++) {
-    Serial.printf("Schedule %d: Time: %s, Days: %s, Enabled: %s\n", i + 1, schedules[i].time.c_str(), schedules[i].days.c_str(), schedules[i].enabled ? "true" : "false");
-  }
+    Serial.println("Enabled Schedules:");
+    for (int i = 0; i < scheduleCount; i++) {
+        if (schedules[i].enabled) {
+            Serial.printf("Schedule %d: Time: %s, Days: %s, Device: %s, Dispenses: %d, Enabled: %s\n", 
+                          i + 1, schedules[i].time.c_str(), schedules[i].days.c_str(), 
+                          schedules[i].device.c_str(), schedules[i].scheduledDispenses, 
+                          schedules[i].enabled ? "true" : "false");
+        }
+    }
 }
 
 bool compareSchedules(const Schedule &a, const Schedule &b) {
@@ -80,7 +85,9 @@ void fetchSchedulesFromAdafruitIO() {
                 if (!valueError) {
                     String time = valueDoc["time"];
                     String days = valueDoc["days"];
-                    bool enabled = valueDoc["enabled"];  // Check if the schedule is enabled
+                    bool enabled = valueDoc["enabled"];
+                    String device = valueDoc["device"];
+                    int scheduledDispenses = valueDoc["scheduledDispenses"];
 
                     // Find the schedule by ID in the local list
                     int existingIndex = findScheduleByID(id);
@@ -96,7 +103,7 @@ void fetchSchedulesFromAdafruitIO() {
                         }
                     } else if (enabled) {
                         // Add the schedule if it doesn't exist locally and is enabled
-                        addSchedule(time, days, enabled, id, false);
+                        addSchedule(time, days, enabled, id, false, device, scheduledDispenses);
                     }
                 } else {
                     Serial.println("Error parsing individual schedule JSON.");
@@ -141,7 +148,7 @@ int findScheduleByID(String id) {
     return -1;  // Return -1 if no schedule is found with this ID
 }
 
-void updateScheduleInAdafruitIO(String id, bool executed, bool enabled, String time, String days) {
+void updateScheduleInAdafruitIO(String id, bool executed, bool enabled, String time, String days, String device, int scheduledDispenses) {
     // If there are no days set (one-time schedule), disable the schedule after execution
     if (days.isEmpty()) {
         enabled = false;  // Disable one-time schedules after execution
@@ -153,6 +160,8 @@ void updateScheduleInAdafruitIO(String id, bool executed, bool enabled, String t
     StaticJsonDocument<256> scheduleDoc;
     scheduleDoc["time"] = time;
     scheduleDoc["days"] = days;
+    scheduleDoc["device"] = device; 
+    scheduleDoc["scheduledDispenses"] = scheduledDispenses; 
     scheduleDoc["enabled"] = enabled;
     scheduleDoc["executed"] = executed;
 
@@ -199,25 +208,25 @@ String getDayAbbreviation(const char* fullDay) {
     return "";  // Return empty string if no match is found
 }
 
-void addSchedule(String time, String days, bool enabled, String id, bool executed) {
-    // Check if the schedule already exists by ID
+void addSchedule(String time, String days, bool enabled, String id, bool executed, String device, int scheduledDispenses) {
     int existingIndex = findScheduleByID(id);
 
     if (existingIndex != -1) {
         Serial.printf("Schedule already exists: Time: %s, ID: %s\n", time.c_str(), id.c_str());
-        return;  // Prevent adding duplicate schedules
+        return;
     }
 
-    // Proceed to add the schedule if it doesn't exist
-    if (scheduleCount < 10) {  // Limit to 10 schedules
+    if (scheduleCount < 10) {
         schedules[scheduleCount].time = time;
         schedules[scheduleCount].days = days;
         schedules[scheduleCount].enabled = enabled;
-        schedules[scheduleCount].executed = executed;  // Initialize executed to the value passed
-        schedules[scheduleCount].id = id;  // Store the schedule ID (can be "unknown" at first)
+        schedules[scheduleCount].executed = executed;
+        schedules[scheduleCount].id = id;
+        schedules[scheduleCount].device = device;
+        schedules[scheduleCount].scheduledDispenses = scheduledDispenses;
         scheduleCount++;
-        Serial.printf("Schedule %d added: Time: %s, Days: %s, Enabled: %s, ID: %s\n", 
-                      scheduleCount, time.c_str(), days.c_str(), enabled ? "true" : "false", id.c_str());
+        Serial.printf("Schedule %d added: Time: %s, Days: %s, Device: %s, Dispenses: %d\n", 
+                      scheduleCount, time.c_str(), days.c_str(), device.c_str(), scheduledDispenses);
     } else {
         Serial.println("Schedule limit reached (10 schedules max).");
     }
@@ -261,17 +270,18 @@ void deleteSchedule(int index) {
 void printAllSchedules() {
     Serial.println("All Non-Executed Schedules:");
     for (int i = 0; i < scheduleCount; i++) {
-        // Only print schedules that have not been executed
         if (!schedules[i].executed) {
-            Serial.printf("Schedule %d: Time: %s, Days: %s, Enabled: %s, ID: %s\n", 
-                          i + 1, 
-                          schedules[i].time.c_str(), 
+            Serial.printf("Schedule %d: Time: %s, Days: %s, Enabled: %s, Device: %s, Dispenses: %d, ID: %s\n", 
+                          i + 1, schedules[i].time.c_str(), 
                           schedules[i].days.isEmpty() ? "One-time" : schedules[i].days.c_str(), 
                           schedules[i].enabled ? "true" : "false",
-                          schedules[i].id.c_str());  // Print the ID
+                          schedules[i].device.c_str(),
+                          schedules[i].scheduledDispenses,
+                          schedules[i].id.c_str());
         }
     }
 }
+
 
 void retryFetchingSchedules() {
     // Add delay or retry logic to re-fetch schedules
@@ -302,19 +312,15 @@ void handleScheduleData(char* scheduleData) {
     bool enabled = doc.containsKey("enabled") ? doc["enabled"] : true;
     String status = doc.containsKey("status") ? String((const char*)doc["status"]) : "pending";
     String id = doc["id"] | "unknown";  // Grab the ID or set to "unknown" if not present
+    String device = doc.containsKey("device") ? String((const char*)doc["device"]) : "defaultDevice";
+    int scheduledDispenses = doc.containsKey("scheduledDispenses") ? doc["scheduledDispenses"].as<int>() : 1;
 
     int existingIndex = findScheduleByTimeAndDays(String(time), String(days));
 
     if (enabled && status != "executed") {
         if (existingIndex == -1) {
             // Add the schedule if it doesn't already exist
-            scheduledTime = String(time);
-            scheduledDays = String(days);
-            scheduleEnabled = enabled;
-
-            bool executed = false;  // Default executed to false for new schedules
-
-            addSchedule(scheduledTime, scheduledDays, scheduleEnabled, id, executed);
+            addSchedule(time, days, enabled, id, false, device, scheduledDispenses);
             Serial.printf("Schedule added: Time: %s, Days: %s, Enabled: true, ID: %s\n", time, days, id.c_str());
         } else {
             Serial.printf("Schedule already exists: Time: %s, Days: %s\n", time, days);
@@ -346,7 +352,7 @@ int findScheduleByTimeAndDays(String time, String days) {
     return -1;
 }
 
-void checkScheduleAndControlLED() {
+void checkScheduleAndControlDevices() {
     if (millis() - lastCheck >= checkInterval) {
         lastCheck = millis();
 
@@ -367,35 +373,57 @@ void checkScheduleAndControlLED() {
 
         for (int i = 0; i < scheduleCount; i++) {
             if (schedules[i].enabled && !schedules[i].executed) {
-                Serial.printf("Checking Schedule %d: Time: %s, Days: %s\n", i + 1, schedules[i].time.c_str(), schedules[i].days.c_str());
+                Serial.printf("Checking Schedule %d: Time: %s, Days: %s, Device: %s\n", 
+                              i + 1, schedules[i].time.c_str(), schedules[i].days.c_str(), schedules[i].device.c_str());
 
+                // Execute only once during the minute by marking it as executed right away
                 if (strcmp(currentTime, schedules[i].time.c_str()) == 0) {
-                    Serial.printf("Time match! Executing Schedule %d.\n", i + 1);
-                    
-                    if (!ledOn) {
-                        handleOnOff("ON");  // Turn LEDs on
-                    } else {
-                        handleOnOff("OFF");  // Turn LEDs off
+                    Serial.printf("Time match! Executing Schedule %d for Device: %s.\n", i + 1, schedules[i].device.c_str());
+
+                    if (schedules[i].device == "LED") {
+                        // Turn LED on only once at the scheduled time
+                        if (!ledOn) {
+                            handleOnOff("ON");
+                        } else {
+                          handleOnOff("OFF");
+                        }
+                        schedules[i].executed = true;
+                    } 
+                    else if (schedules[i].device == "Feeder") {
+                        // Initialize remainingDispenses if it hasn't been set
+                        if (remainingDispenses[i] == 0) {
+                            remainingDispenses[i] = schedules[i].scheduledDispenses;
+                        }
+
+                        // Activate servo for each dispense and count down
+                        if (remainingDispenses[i] > 0) {
+                            activateServo();
+                            delay(500);  // Delay between dispenses
+                            remainingDispenses[i]--;
+
+                            // Only set executed to true when all dispenses are completed
+                            if (remainingDispenses[i] == 0) {
+                                schedules[i].executed = true;
+                            }
+                        }
                     }
 
-                    schedules[i].executed = true;
-
-                    // If the schedule is a one-time schedule (no days), disable and remove it
-                    if (schedules[i].days.isEmpty()) {
+                    // Handle one-time schedules or update Adafruit IO as needed
+                    if (schedules[i].days.isEmpty() && schedules[i].executed) {
                         schedules[i].enabled = false;
-                        updateScheduleInAdafruitIO(schedules[i].id, true, false, schedules[i].time, schedules[i].days);
-                        deleteSchedule(i);  // Delete the one-time schedule locally after execution
+                        updateScheduleInAdafruitIO(schedules[i].id, true, false, schedules[i].time, schedules[i].days, schedules[i].device, schedules[i].scheduledDispenses);
+                        deleteSchedule(i);  // Delete one-time schedule locally after execution
                         i--;  // Adjust index after deletion to prevent skipping
-                    } else {
-                        // Update Adafruit IO without removing the schedule
-                        updateScheduleInAdafruitIO(schedules[i].id, true, true, schedules[i].time, schedules[i].days);
+                    } else if (schedules[i].executed) {
+                        // Update Adafruit IO for recurring schedules
+                        updateScheduleInAdafruitIO(schedules[i].id, true, true, schedules[i].time, schedules[i].days, schedules[i].device, schedules[i].scheduledDispenses);
                     }
-                    return;
                 }
             }
         }
     }
 }
+
 
 void resetExecutedFlagsIfNewDay() {
     static int lastDay = -1;
@@ -412,7 +440,7 @@ void resetExecutedFlagsIfNewDay() {
                 schedules[i].executed = false;
 
                 // Update Adafruit IO to reset the executed flag for this schedule
-                updateScheduleInAdafruitIO(schedules[i].id, false, schedules[i].enabled, schedules[i].time, schedules[i].days);
+                updateScheduleInAdafruitIO(schedules[i].id, false, schedules[i].enabled, schedules[i].time, schedules[i].days, schedules[i].device, schedules[i].scheduledDispenses);
             }
         }
         lastDay = currentDay;

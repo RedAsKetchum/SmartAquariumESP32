@@ -28,6 +28,7 @@ void setup() {
 
     // Manual format in case of corruption
     //SPIFFS.format();
+    formatFeed->onMessage(handleFormatCommand);
 
     // Mount SPIFFS for file storage
     if (!SPIFFS.begin(true)) {
