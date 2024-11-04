@@ -453,3 +453,44 @@ bool compareSchedulesForChanges(const Schedule &localSchedule, const Schedule &n
          (localSchedule.days == newSchedule.days) && 
          (localSchedule.enabled == newSchedule.enabled);
 }
+
+void monitorScheduleChanges() {
+    // Set up a timer to check for changes periodically
+    static unsigned long lastFetchTime = 0;
+    const unsigned long fetchInterval = 30000;  // Fetch every 30 seconds
+
+    if (millis() - lastFetchTime >= fetchInterval) {
+        lastFetchTime = millis();
+        
+        // Fetch latest schedules from Adafruit IO
+        fetchSchedulesFromAdafruitIO();
+
+        // Compare fetched schedules with local schedules
+        for (int i = 0; i < scheduleCount; i++) {
+            int fetchedIndex = findScheduleByID(schedules[i].id);
+            
+            if (fetchedIndex != -1) {
+                Schedule fetchedSchedule = schedules[fetchedIndex];
+
+                // Check if the fetched schedule is different from the local schedule
+                if (!compareSchedulesForChanges(schedules[i], fetchedSchedule)) {
+                    Serial.printf("Detected changes in Schedule ID %s. Updating local schedule.\n", schedules[i].id.c_str());
+                    
+                    // Update the local schedule with new values
+                    schedules[i].time = fetchedSchedule.time;
+                    schedules[i].days = fetchedSchedule.days;
+                    schedules[i].enabled = fetchedSchedule.enabled;
+                    schedules[i].device = fetchedSchedule.device;
+                    schedules[i].scheduledDispenses = fetchedSchedule.scheduledDispenses;
+                    
+                    // If necessary, update execution flags or trigger any actions based on changes
+                    if (fetchedSchedule.enabled != schedules[i].enabled || fetchedSchedule.scheduledDispenses != schedules[i].scheduledDispenses) {
+                        Serial.println("Executing actions based on updated schedule.");
+                        checkScheduleAndControlDevices();
+                    }
+                }
+            }
+        }
+    }
+}
+

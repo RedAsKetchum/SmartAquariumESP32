@@ -89,6 +89,7 @@ void loop() {
 
   // Reset executed flags if a new day has started
   resetExecutedFlagsIfNewDay();
+  monitorScheduleChanges();
 
   // Check and control LEDs based on the schedule
   if (scheduleCount > 0) {

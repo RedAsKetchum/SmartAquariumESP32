@@ -29,7 +29,7 @@ const char* timeZone = "EST5EDT,M3.2.0,M11.1.0";  // Timezone for New York City
 #define AIO_KEY         "aio_FXeu11JxZcmPv3ey6r4twxbIyrfH"
 
 // NeoPixel strip settings
-#define LED_PIN         27   // Pin where the data line is connected (Din)
+#define LED_PIN         15  // Pin where the data line is connected (Din)
 #define NUM_LEDS        150   // Number of LEDs in the strip
 Adafruit_NeoPixel strip = Adafruit_NeoPixel(NUM_LEDS, LED_PIN, NEO_GRB + NEO_KHZ800);
 
@@ -97,7 +97,7 @@ DallasTemperature tempSensor(&oneWire); // Pass the oneWire reference to DallasT
 #define SAMPLING_INTERVAL 1000  // Interval for pH reading (1 second)  
 
 Servo myServo;
-const int servoPin = 25;  // GPIO for Servo
+const int servoPin = 13;  // GPIO for Servo
 bool servoActive = false;  // Track if the servo is active
 unsigned long servoMoveStartTime = 0;  // Time when servo started moving
 int servoState = 0;      // Track servo state (0 = idle, 1 = moving to 45 degrees, 2 = returning)
