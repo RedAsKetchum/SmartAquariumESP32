@@ -15,8 +15,8 @@
 #include <DallasTemperature.h>
 
 // ******************** WiFi credentials *******************************
-#define WIFI_SSID       "In Your Area-2G"
-#define WIFI_PASSWORD   "lightfield289"
+#define WIFI_SSID       "Battle_Network"
+#define WIFI_PASSWORD   "Pandy218!"
 
 // NTP server to request time
 const char* ntpServer = "pool.ntp.org";
@@ -80,7 +80,7 @@ sqlite3 *db;
 char *zErrMsg = 0;
 int rc;
 unsigned long previousMillis = 0;   // To store the last time you inserted data
-const long interval = 10000;      // Interval between data insertions
+const long interval = 8000;      // Interval between data insertions
 float lastSensor1Value = 0;  
 
 //Temperature Sensor

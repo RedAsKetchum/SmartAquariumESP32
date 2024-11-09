@@ -52,8 +52,9 @@ void loop() {
         activateServo();  // Call the function to activate the servo
       }
     }
-
-    if (subscription == &sensorSettingsFeed) { //reads the sensor settings user set limits
+    
+    //Reads the sensor settings user set limits
+    if (subscription == &sensorSettingsFeed) { 
           Serial.print("Received sensor settings data: ");
           String jsonString = (char *)sensorSettingsFeed.lastread;
           Serial.println(jsonString);
