@@ -51,6 +51,7 @@ Adafruit_MQTT_Subscribe servoFeed = Adafruit_MQTT_Subscribe(&mqtt, AIO_USERNAME 
 Adafruit_MQTT_Publish sensorDataFeed = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "/feeds/temperature-sensor");
 Adafruit_MQTT_Subscribe sensorSettingsFeed = Adafruit_MQTT_Subscribe(&mqtt, AIO_USERNAME "/feeds/sensor-settings");
 Adafruit_MQTT_Publish notifications = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "/feeds/notifications"); 
+Adafruit_MQTT_Publish wifiNetworkFeed = Adafruit_MQTT_Publish(&mqtt,AIO_USERNAME "/feeds/wifi-network");
 
 struct Schedule {
     String time;
