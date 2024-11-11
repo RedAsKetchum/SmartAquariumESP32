@@ -45,14 +45,44 @@ void loop() {
       printAllSchedules();
     }
 
+    // Handle servo feed subscription - MODIFY HERE!
+    // if (subscription == &servoFeed) {
+    //   String data = (char *)servoFeed.lastread;
+    //   if (data == "activate") {
+    //     activateServo();  // Call the function to activate the servo
+    //   }
+    // }
+
     // Handle servo feed subscription
     if (subscription == &servoFeed) {
       String data = (char *)servoFeed.lastread;
-      if (data == "activate") {
-        activateServo();  // Call the function to activate the servo
+      Serial.print("Received data: ");
+      Serial.println(data);  // Debugging print for the raw data
+
+      // Create a JSON document to parse the data
+      StaticJsonDocument<200> doc;
+      
+      // Parse the JSON string
+      DeserializationError error = deserializeJson(doc, data);
+      
+      // Check if parsing succeeded
+      if (!error) {
+        // Extract the value of the "action" key
+        const char* action = doc["action"];
+        
+        // Check if the "action" key has the value "activate"
+        if (String(action) == "activate") {
+          Serial.println("Activating servo...");  // Debug print before activating
+          activateServo();  // Call the function to activate the servo
+        } else {
+          Serial.println("Action 'activate' not found in feed data.");
+        }
+      } else {
+        Serial.print("Failed to parse JSON: ");
+        Serial.println(error.c_str());
       }
     }
-    
+
     //Reads the sensor settings user set limits
     if (subscription == &sensorSettingsFeed) { 
           Serial.print("Received sensor settings data: ");
@@ -107,6 +137,13 @@ void loop() {
   // Check if the interval has passed before inserting a new entry in the database
   if (currentMillis - previousMillis >= interval) {
     previousMillis = currentMillis;
+
+    
+     if (wifiNetworkFeed.publish(jsonString.c_str())) {
+      //Serial.println("Wi-Fi network name sent to Adafruit IO");
+    } else {
+      Serial.println("Failed to send Wi-Fi network name");
+    }
 
     // Count the number of entries in the database
     const char* sqlCount = "SELECT COUNT(*) FROM SensorData;";
@@ -192,17 +229,18 @@ void loop() {
     if (!sensorDataFeed.publish(jsonString)) {
       Serial.println(F("Failed to send sensor data to Adafruit IO."));
     } else {
-      Serial.println(F("Sensor data sent to Adafruit IO..."));
+      //Serial.println(F("Sensor data sent to Adafruit IO..."));
     }
     
     //Display sensor's json data
-    Serial.println(jsonResponse);
+    //Serial.println(jsonResponse);
 
     //Check if sensor values exceed thresholds and notify the user. Limits set by the user.
     checkSensorValues(temperatureF, pHValue, turbidityValue); 
     
     // Print the table after the insertion or update
-    printTable();
+    //printTable();
+
   }
 
   // Handle servo movement asynchronously
@@ -216,3 +254,4 @@ void loop() {
 
   //delay(2000);  // Short delay to avoid flooding serial output
 }
+

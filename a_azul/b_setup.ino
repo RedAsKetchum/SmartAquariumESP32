@@ -1,3 +1,6 @@
+
+String jsonString;
+
 void setup() {
     // Start the serial connection for debugging
     Serial.begin(115200);
@@ -12,28 +15,27 @@ void setup() {
     String networkName = WiFi.SSID();
 
     // Create a JSON object
-    StaticJsonDocument<200> doc;
-    doc["network_name"] = networkName;  // Store the Wi-Fi network name in the JSON object
+    StaticJsonDocument<200> network;
+    network["network_name"] = networkName;  // Store the Wi-Fi network name in the JSON object
 
     // Convert the JSON object to a string
-    String jsonString;
-    serializeJson(doc, jsonString);
-   
+    serializeJson(network, jsonString);
+
     // Set up Time
     setupTime();  // Assuming you have a custom function for setting up time
     configTzTime(timeZone, ntpServer);
 
     // Connect to Adafruit IO
     io.connect();
-
-    MQTT_connect();
+   
+    //MQTT_connect();
 
     // Send the network name to the Adafruit IO feed
-    if (wifiNetworkFeed.publish(jsonString.c_str())) {
-      Serial.println("Wi-Fi network name sent to Adafruit IO");
-    } else {
-      Serial.println("Failed to send Wi-Fi network name");
-    }
+    // if (wifiNetworkFeed.publish(jsonString.c_str())) {
+    //   Serial.println("Wi-Fi network name sent to Adafruit IO");
+    // } else {
+    //   Serial.println("Failed to send Wi-Fi network name");
+    // }
     
     // Seed the random number generator with an analog input (for testing database entries)
     randomSeed(analogRead(0));
@@ -157,3 +159,5 @@ void setup() {
     // Print available heap memory
     Serial.printf("Available heap: %d bytes\n", ESP.getFreeHeap());
 }
+
+
