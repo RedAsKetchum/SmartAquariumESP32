@@ -45,14 +45,78 @@ void loop() {
       printAllSchedules();
     }
 
-    // Handle servo feed subscription
-    if (subscription == &servoFeed) {
-      String data = (char *)servoFeed.lastread;
-      if (data == "activate") {
-        activateServo();  // Call the function to activate the servo
-      }
+    // Handle servo feed subscription - MODIFY HERE!
+    // if (subscription == &servoFeed) {
+    //   String data = (char *)servoFeed.lastread;
+    //   if (data == "activate") {
+    //     activateServo();  // Call the function to activate the servo
+    //   }
+    // }
+
+ // Handle servo feed subscription
+if (subscription == &servoFeed) {
+    String data = (char *)servoFeed.lastread;
+    Serial.print("Received data: ");
+    Serial.println(data);  // Debugging print for the raw data
+
+    // Create a JSON document to parse the data
+    StaticJsonDocument<200> doc;
+
+    // Parse the JSON string
+    DeserializationError error = deserializeJson(doc, data);
+
+    // Check if parsing succeeded
+    if (!error) {
+        // Print entire JSON data for debugging
+        serializeJson(doc, Serial);
+        Serial.println();
+
+        // Extract the "action" key
+        const char* action = doc["action"];
+        Serial.print("Action received: ");
+        Serial.println(action);  // Debug print for action value
+
+        // Extract the "Amount" key (previously manualValue)
+        int manualValue = doc["Amount"] | -1;  // Use -1 as fallback to detect missing key
+        Serial.print("Amount received: ");
+        Serial.println(manualValue);  // Debug print for Amount
+
+        // Proceed only if action is "activate"
+        if (String(action) == "activate") {
+            if (manualValue > 0) {  // Ensure Amount is valid
+                Serial.println("Starting dispensing cycles...");
+
+                // Loop for the specified number of dispense cycles
+                for (int i = 0; i < manualValue; i++) {
+                    Serial.print("Dispense cycle: ");
+                    Serial.println(i + 1);
+
+                    // Start the servo movement
+                    activateServo();
+
+                    // Wait until the servo has completed its movement cycle
+                    while (servoActive) {
+                        handleServoMovement();
+                        delay(10);  // Small delay to prevent overloading the loop
+                    }
+
+                    // Short delay between dispense cycles
+                    delay(1000);
+                }
+                Serial.println("Dispensing completed.");
+            } else {
+                Serial.println("Invalid or missing Amount, no dispensing.");
+            }
+        } else {
+            Serial.println("Action 'activate' not found in feed data.");
+        }
+    } else {
+        Serial.print("Failed to parse JSON: ");
+        Serial.println(error.c_str());
     }
-    
+}
+
+
     //Reads the sensor settings user set limits
     if (subscription == &sensorSettingsFeed) { 
           Serial.print("Received sensor settings data: ");
@@ -107,6 +171,13 @@ void loop() {
   // Check if the interval has passed before inserting a new entry in the database
   if (currentMillis - previousMillis >= interval) {
     previousMillis = currentMillis;
+
+    
+     if (wifiNetworkFeed.publish(jsonString.c_str())) {
+      //Serial.println("Wi-Fi network name sent to Adafruit IO");
+    } else {
+      Serial.println("Failed to send Wi-Fi network name");
+    }
 
     // Count the number of entries in the database
     const char* sqlCount = "SELECT COUNT(*) FROM SensorData;";
@@ -192,17 +263,18 @@ void loop() {
     if (!sensorDataFeed.publish(jsonString)) {
       Serial.println(F("Failed to send sensor data to Adafruit IO."));
     } else {
-      Serial.println(F("Sensor data sent to Adafruit IO..."));
+      //Serial.println(F("Sensor data sent to Adafruit IO..."));
     }
     
     //Display sensor's json data
-    Serial.println(jsonResponse);
+    //Serial.println(jsonResponse);
 
     //Check if sensor values exceed thresholds and notify the user. Limits set by the user.
     checkSensorValues(temperatureF, pHValue, turbidityValue); 
     
     // Print the table after the insertion or update
-    printTable();
+    //printTable();
+
   }
 
   // Handle servo movement asynchronously
@@ -216,3 +288,4 @@ void loop() {
 
   //delay(2000);  // Short delay to avoid flooding serial output
 }
+
