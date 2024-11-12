@@ -519,7 +519,7 @@ void monitorScheduleChanges() {
                     
                     // If necessary, update execution flags or trigger any actions based on changes
                     if (fetchedSchedule.enabled != schedules[i].enabled || fetchedSchedule.scheduledDispenses != schedules[i].scheduledDispenses) {
-                        Serial.println("Executing actions based on updated schedule.");
+                        Serial.println("Executing actions.");
                         checkScheduleAndControlDevices();
                     }
                 }
