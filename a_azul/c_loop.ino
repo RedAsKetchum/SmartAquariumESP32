@@ -76,47 +76,67 @@ if (subscription == &servoFeed) {
         Serial.print("Action received: ");
         Serial.println(action);  // Debug print for action value
 
-        // Extract the "Amount" key (previously manualValue)
-        int manualValue = doc["Amount"] | -1;  // Use -1 as fallback to detect missing key
-        Serial.print("Amount received: ");
-        Serial.println(manualValue);  // Debug print for Amount
+        // Extract the "Amount" and "scheduledDispenses" keys
+        int manualValue = doc["Amount"] | -1;  // Use -1 as fallback for manual dispensing
+        int scheduledDispenses = doc["scheduledDispenses"] | -1;  // Use -1 as fallback for scheduled dispensing
 
-        // Proceed only if action is "activate"
-        if (String(action) == "activate") {
-            if (manualValue > 0) {  // Ensure Amount is valid
-                Serial.println("Starting dispensing cycles...");
+        // Debug print for Amount and scheduledDispenses values
+        Serial.print("Manual Amount received: ");
+        Serial.println(manualValue);
+        
+        // Check if the action is "activate" for manual dispensing
+        if (String(action) == "activate" && manualValue > 0) {
+            Serial.println("Starting manual dispensing cycles...");
 
-                // Loop for the specified number of dispense cycles
-                for (int i = 0; i < manualValue; i++) {
-                    Serial.print("Dispense cycle: ");
-                    Serial.println(i + 1);
+            // Loop for the specified number of manual dispense cycles
+            for (int i = 0; i < manualValue; i++) {
+                Serial.print("Manual Dispense cycle: ");
+                Serial.println(i + 1);
 
-                    // Start the servo movement
-                    activateServo();
+                // Start the servo movement
+                activateServo();
 
-                    // Wait until the servo has completed its movement cycle
-                    while (servoActive) {
-                        handleServoMovement();
-                        delay(10);  // Small delay to prevent overloading the loop
-                    }
-
-                    // Short delay between dispense cycles
-                    delay(1000);
+                // Wait until the servo has completed its movement cycle
+                while (servoActive) {
+                    handleServoMovement();
+                    delay(10);  // Small delay to prevent overloading the loop
                 }
-                Serial.println("Dispensing completed.");
-            } else {
-                Serial.println("Invalid or missing Amount, no dispensing.");
+
+                // Short delay between dispense cycles
+                delay(1000);
             }
+            Serial.println("Manual dispensing completed.");
+
+        // Check if this is a scheduled dispensing request
+        } else if (scheduledDispenses > 0) {
+            Serial.println("Starting scheduled dispensing cycles...");
+
+            // Loop for the specified number of scheduled dispense cycles
+            for (int i = 0; i < scheduledDispenses; i++) {
+                Serial.print("Scheduled Dispense cycle: ");
+                Serial.println(i + 1);
+
+                // Start the servo movement
+                activateServo();
+
+                // Wait until the servo has completed its movement cycle
+                while (servoActive) {
+                    handleServoMovement();
+                    delay(10);  // Small delay to prevent overloading the loop
+                }
+
+                // Short delay between dispense cycles
+                delay(1000);
+            }
+            Serial.println("Scheduled dispensing completed.");
         } else {
-            Serial.println("Action 'activate' not found in feed data.");
+            Serial.println("Invalid or missing Amount or scheduledDispenses, no dispensing.");
         }
     } else {
         Serial.print("Failed to parse JSON: ");
         Serial.println(error.c_str());
     }
 }
-
-
     //Reads the sensor settings user set limits
     if (subscription == &sensorSettingsFeed) { 
           Serial.print("Received sensor settings data: ");
@@ -155,7 +175,7 @@ if (subscription == &servoFeed) {
   // Reset executed flags if a new day has started
   resetExecutedFlagsIfNewDay();
   monitorScheduleChanges();
-
+ 
   // Check and control LEDs based on the schedule
   if (scheduleCount > 0) {
     checkScheduleAndControlDevices();

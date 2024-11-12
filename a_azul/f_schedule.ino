@@ -70,67 +70,82 @@ void fetchSchedulesFromAdafruitIO() {
         DeserializationError error = deserializeJson(doc, payload);
 
         if (!error) {
-            JsonArray data = doc.as<JsonArray>();
-            bool foundInIO = false;  // Flag to check if schedule exists in Adafruit IO
+            // Convert the document to a JSON array
+            if (doc.is<JsonArray>()) {  // Check if doc is indeed a JsonArray
+                JsonArray data = doc.as<JsonArray>();
+                Serial.printf("Number of schedules fetched: %d\n", data.size());  // Print the number of schedules fetched
 
-            // Iterate through each schedule in the response from Adafruit IO
-            for (JsonObject schedule : data) {
-                String scheduleValue = schedule["value"];  // Get the schedule value (contains JSON)
-                String id = schedule["id"];  // Extract the schedule ID from Adafruit IO
-
-                // Parse the value JSON
-                StaticJsonDocument<256> valueDoc;
-                DeserializationError valueError = deserializeJson(valueDoc, scheduleValue);
-
-                if (!valueError) {
-                    String time = valueDoc["time"];
-                    String days = valueDoc["days"];
-                    bool enabled = valueDoc["enabled"];
-                    String device = valueDoc["device"];
-                    int scheduledDispenses = valueDoc["scheduledDispenses"];
-
-                    // Find the schedule by ID in the local list
-                    int existingIndex = findScheduleByID(id);
-
-                    if (existingIndex != -1) {
-                        // If found locally, mark that it exists in Adafruit IO
-                        foundInIO = true;
-
-                        // If the schedule is disabled, delete it locally
-                        if (!enabled) {
-                            Serial.printf("Schedule disabled in Adafruit IO. Deleting locally: ID: %s\n", id.c_str());
-                            deleteSchedule(existingIndex);
-                        }
-                    } else if (enabled) {
-                        // Add the schedule if it doesn't exist locally and is enabled
-                        addSchedule(time, days, enabled, id, false, device, scheduledDispenses);
-                    }
-                } else {
-                    Serial.println("Error parsing individual schedule JSON.");
-                }
-            }
-
-            // After checking all schedules from Adafruit IO, remove any local schedules that were not found
-            for (int i = 0; i < scheduleCount; i++) {
-                foundInIO = false;
-                // Re-check if the local schedule exists in Adafruit IO
+                // Iterate through each schedule in the response from Adafruit IO
                 for (JsonObject schedule : data) {
-                    String id = schedule["id"];
-                    if (schedules[i].id == id) {
-                        foundInIO = true;
-                        break;
+                    String scheduleValue = schedule["value"];  // Get the schedule value (contains JSON)
+                    String id = schedule["id"];  // Extract the schedule ID from Adafruit IO
+
+                    // Parse the value JSON
+                    StaticJsonDocument<256> valueDoc;
+                    DeserializationError valueError = deserializeJson(valueDoc, scheduleValue);
+
+                    if (!valueError) {
+                        String time = valueDoc["time"];
+                        String days = valueDoc["days"];
+                        bool enabled = valueDoc["enabled"];
+                        String device = valueDoc["device"];
+                        int scheduledDispenses = valueDoc["scheduledDispenses"];
+
+                        // Find the schedule by ID in the local list
+                        int existingIndex = findScheduleByID(id);
+
+                        if (existingIndex != -1) {
+                            // Check for changes in the fetched schedule
+                            if (schedules[existingIndex].time != time ||
+                                schedules[existingIndex].days != days ||
+                                schedules[existingIndex].enabled != enabled ||
+                                schedules[existingIndex].device != device ||
+                                schedules[existingIndex].scheduledDispenses != scheduledDispenses) {
+                                
+                                // Update the local schedule with new values
+                                schedules[existingIndex].time = time;
+                                schedules[existingIndex].days = days;
+                                schedules[existingIndex].enabled = enabled;
+                                schedules[existingIndex].device = device;
+                                schedules[existingIndex].scheduledDispenses = scheduledDispenses;
+
+                                Serial.printf("Updated local schedule ID %s with new values\n", id.c_str());
+                            }
+                        } else if (enabled) {
+                            // Add the schedule if it doesn't exist locally and is enabled
+                            addSchedule(time, days, enabled, id, false, device, scheduledDispenses);
+                            Serial.printf("Added new schedule from Adafruit IO: ID %s\n", id.c_str());
+                        }
+                    } else {
+                        Serial.println("Error parsing individual schedule JSON.");
                     }
                 }
 
-                if (!foundInIO) {
-                    // If not found, delete the schedule locally
-                    Serial.printf("Schedule not found in Adafruit IO. Deleting locally: ID: %s\n", schedules[i].id.c_str());
-                    deleteSchedule(i);
-                    i--;  // Adjust index after deletion to prevent skipping schedules
+                // After processing fetched schedules, delete any local schedules that are either disabled or not found in Adafruit IO
+                for (int i = 0; i < scheduleCount; i++) {
+                    bool foundInIO = false;
+                    
+                    // Re-check if the local schedule exists in Adafruit IO
+                    for (JsonObject schedule : data) {
+                        String id = schedule["id"];
+                        if (schedules[i].id == id) {
+                            foundInIO = true;
+                            break;
+                        }
+                    }
+
+                    // Delete schedule if it's not found in Adafruit IO or if it is disabled
+                    if (!foundInIO || !schedules[i].enabled) {
+                        Serial.printf("Deleting local schedule: ID: %s\n", schedules[i].id.c_str());
+                        deleteSchedule(i);
+                        i--;  // Adjust index after deletion to prevent skipping schedules
+                    }
                 }
+            } else {
+                Serial.println("Error: JSON response is not an array as expected.");
             }
         } else {
-            Serial.println("Error parsing JSON from Adafruit IO.");
+            Serial.printf("Error parsing JSON from Adafruit IO: %s\n", error.c_str());
         }
     } else {
         Serial.printf("Error fetching schedules from Adafruit IO. HTTP code: %d\n", httpCode);
@@ -359,7 +374,11 @@ void checkScheduleAndControlDevices() {
         time_t now = time(nullptr);
         struct tm *timeinfo = localtime(&now);
 
+        int month = timeinfo->tm_mon + 1;  // tm_mon is months since January (0–11), so add 1
+        int day = timeinfo->tm_mday;
         int hour = timeinfo->tm_hour;
+        int minute = timeinfo->tm_min;
+       
         String ampm = "AM";
         if (hour >= 12) {
             ampm = "PM";
@@ -370,6 +389,9 @@ void checkScheduleAndControlDevices() {
 
         char currentTime[9];
         sprintf(currentTime, "%02d:%02d %s", hour, timeinfo->tm_min, ampm.c_str());
+
+        char dateTime[20];
+        sprintf(dateTime, "%02d.%02d %02d:%02d %s", month, day, hour, minute, ampm.c_str());
 
         for (int i = 0; i < scheduleCount; i++) {
             if (schedules[i].enabled && !schedules[i].executed) {
@@ -395,16 +417,10 @@ void checkScheduleAndControlDevices() {
                             remainingDispenses[i] = schedules[i].scheduledDispenses;
                         }
 
-                        // Activate servo for each dispense and count down
                         if (remainingDispenses[i] > 0) {
-                            activateServo();
-                            delay(500);  // Delay between dispenses
-                            remainingDispenses[i]--;
-
-                            // Only set executed to true when all dispenses are completed
-                            if (remainingDispenses[i] == 0) {
-                                schedules[i].executed = true;
-                            }
+                            sendToServoControlFeed("Scheduled", "activate", dateTime, remainingDispenses[i]);
+                            remainingDispenses[i] = 0;  // Reset remainingDispenses after sending
+                            schedules[i].executed = true;
                         }
                     }
 
@@ -421,6 +437,24 @@ void checkScheduleAndControlDevices() {
                 }
             }
         }
+    }
+}
+
+void sendToServoControlFeed(String type, String action, String dateTime, int amount) {
+    StaticJsonDocument<200> doc;
+    doc["Type"] = type;
+    doc["action"] = action;
+    doc["Time"] = dateTime;
+    doc["Amount"] = amount;
+
+    String payload;
+    serializeJson(doc, payload);
+
+    if (mqtt.publish(String(AIO_USERNAME "/feeds/servo-control").c_str(), payload.c_str())) {
+        Serial.println("Sent to servo-control feed:");
+        Serial.println(payload);
+    } else {
+        Serial.println("Failed to send to servo-control feed.");
     }
 }
 
@@ -457,7 +491,7 @@ bool compareSchedulesForChanges(const Schedule &localSchedule, const Schedule &n
 void monitorScheduleChanges() {
     // Set up a timer to check for changes periodically
     static unsigned long lastFetchTime = 0;
-    const unsigned long fetchInterval = 30000;  // Fetch every 30 seconds
+    const unsigned long fetchInterval = 10000;  // Fetch every 30 seconds
 
     if (millis() - lastFetchTime >= fetchInterval) {
         lastFetchTime = millis();

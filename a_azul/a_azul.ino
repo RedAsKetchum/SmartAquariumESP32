@@ -15,8 +15,8 @@
 #include <DallasTemperature.h>
 
 // ******************** WiFi credentials *******************************
-#define WIFI_SSID       "Battle_Network"
-#define WIFI_PASSWORD   "Pandy218!"
+#define WIFI_SSID       "In Your Area-2G"
+#define WIFI_PASSWORD   "lightfield289"
 
 // NTP server to request time
 const char* ntpServer = "pool.ntp.org";
@@ -131,7 +131,8 @@ void checkScheduleAndControlDevices();
 void resetExecutedFlagsIfNewDay();
 bool compareSchedulesForChanges(const Schedule &localSchedule, const Schedule &newSchedule);
 void sendLEDStateToAdafruitIO(bool state);
-
+void sendToServoControlFeed(String type, String action, String time, int amount);
+void monitorScheduleChanges();
 void initializeDatabase();
 
 // LED Settings
