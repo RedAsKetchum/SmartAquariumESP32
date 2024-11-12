@@ -53,35 +53,69 @@ void loop() {
     //   }
     // }
 
-    // Handle servo feed subscription
-    if (subscription == &servoFeed) {
-      String data = (char *)servoFeed.lastread;
-      Serial.print("Received data: ");
-      Serial.println(data);  // Debugging print for the raw data
+ // Handle servo feed subscription
+if (subscription == &servoFeed) {
+    String data = (char *)servoFeed.lastread;
+    Serial.print("Received data: ");
+    Serial.println(data);  // Debugging print for the raw data
 
-      // Create a JSON document to parse the data
-      StaticJsonDocument<200> doc;
-      
-      // Parse the JSON string
-      DeserializationError error = deserializeJson(doc, data);
-      
-      // Check if parsing succeeded
-      if (!error) {
-        // Extract the value of the "action" key
+    // Create a JSON document to parse the data
+    StaticJsonDocument<200> doc;
+
+    // Parse the JSON string
+    DeserializationError error = deserializeJson(doc, data);
+
+    // Check if parsing succeeded
+    if (!error) {
+        // Print entire JSON data for debugging
+        serializeJson(doc, Serial);
+        Serial.println();
+
+        // Extract the "action" key
         const char* action = doc["action"];
-        
-        // Check if the "action" key has the value "activate"
+        Serial.print("Action received: ");
+        Serial.println(action);  // Debug print for action value
+
+        // Extract the "Amount" key (previously manualValue)
+        int manualValue = doc["Amount"] | -1;  // Use -1 as fallback to detect missing key
+        Serial.print("Amount received: ");
+        Serial.println(manualValue);  // Debug print for Amount
+
+        // Proceed only if action is "activate"
         if (String(action) == "activate") {
-          Serial.println("Activating servo...");  // Debug print before activating
-          activateServo();  // Call the function to activate the servo
+            if (manualValue > 0) {  // Ensure Amount is valid
+                Serial.println("Starting dispensing cycles...");
+
+                // Loop for the specified number of dispense cycles
+                for (int i = 0; i < manualValue; i++) {
+                    Serial.print("Dispense cycle: ");
+                    Serial.println(i + 1);
+
+                    // Start the servo movement
+                    activateServo();
+
+                    // Wait until the servo has completed its movement cycle
+                    while (servoActive) {
+                        handleServoMovement();
+                        delay(10);  // Small delay to prevent overloading the loop
+                    }
+
+                    // Short delay between dispense cycles
+                    delay(1000);
+                }
+                Serial.println("Dispensing completed.");
+            } else {
+                Serial.println("Invalid or missing Amount, no dispensing.");
+            }
         } else {
-          Serial.println("Action 'activate' not found in feed data.");
+            Serial.println("Action 'activate' not found in feed data.");
         }
-      } else {
+    } else {
         Serial.print("Failed to parse JSON: ");
         Serial.println(error.c_str());
-      }
     }
+}
+
 
     //Reads the sensor settings user set limits
     if (subscription == &sensorSettingsFeed) { 
