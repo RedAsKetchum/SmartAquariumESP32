@@ -75,6 +75,9 @@ const unsigned long checkInterval = 2000;
 Schedule schedules[10];  // Array to store up to 10 schedules
 int scheduleCount = 0;   // Keep track of how many schedules are stored
 int remainingDispenses[10]; 
+bool schedulesNeedFetching = false;
+unsigned long lastFetch = 0;
+unsigned long fetchInterval = 2000;
 
 //Chris' Variables
 sqlite3 *db;
@@ -120,7 +123,6 @@ int timeToMinutes(String timeStr);
 void fetchSchedulesFromAdafruitIO();
 int findScheduleByID(String id);
 void updateScheduleInAdafruitIO(String id, bool executed, bool enabled, String time, String days, String device, int scheduledDispenses);
-String getDayAbbreviation(const char* fullDay);
 void addSchedule(String time, String days, bool enabled, String id, bool executed, String device, int scheduledDispenses);
 void deleteSchedule(int index);
 void printAllSchedules();
