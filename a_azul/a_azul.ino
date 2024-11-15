@@ -15,8 +15,8 @@
 #include <DallasTemperature.h>
 
 // ******************** WiFi credentials *******************************
-#define WIFI_SSID       "In Your Area-2G"
-#define WIFI_PASSWORD   "lightfield289"
+#define WIFI_SSID       "Battle_Network"
+#define WIFI_PASSWORD   "Pandy218!"
 
 // NTP server to request time
 const char* ntpServer = "pool.ntp.org";
@@ -96,9 +96,15 @@ DallasTemperature tempSensor(&oneWire); // Pass the oneWire reference to DallasT
 // Define the pin where the pH sensor is connected
 #define PH_SENSOR_PIN 34  // GPIO34 (ADC pin) of ESP32 for analog input
 
+//Turbidity Sensor
+const int turbidityPin = 4;
+
 // Calibration values for pH sensor V1 (adjust if necessary)
-#define OFFSET 0.00         // pH offset for calibration
-#define SAMPLING_INTERVAL 1000  // Interval for pH reading (1 second)  
+#define Offset 0.68 
+#define ArrayLenth  40    //times of collection
+int pHArray[ArrayLenth];     // store sensor feedback values
+int pHArrayIndex = 0;
+float currentPH; 
 
 Servo myServo;
 const int servoPin = 13;  // GPIO for Servo

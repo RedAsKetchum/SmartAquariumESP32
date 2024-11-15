@@ -46,8 +46,6 @@ void setup() {
     // Start up the DS18B20 library for temperature sensor
     tempSensor.begin();
 
-    // ************** Insert Turbidity Code Here *************
-
     // Manual format in case of corruption
     //SPIFFS.format();
     formatFeed->onMessage(handleFormatCommand);

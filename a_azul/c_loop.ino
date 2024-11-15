@@ -244,14 +244,26 @@ if (subscription == &servoFeed) {
     String sensor1Timestamp = getTimestamp();
 
     // Read the analog value from the pH sensor (10-bit ADC: 0-4095)
-    int analogValue = analogRead(PH_SENSOR_PIN);
-    voltage = analogValue * (3.3 / 4095.0);
-    pHValue = 3.5 * voltage + OFFSET;
+    pHArray[pHArrayIndex++] = analogRead(PH_SENSOR_PIN);
+    if (pHArrayIndex == ArrayLenth) pHArrayIndex = 0;
+    voltage = avergearray(pHArray, ArrayLenth) * 3.3 / 4095;
+    currentPH = 3.5 * voltage + Offset;
+    pHValue =  currentPH;
     String sensor2Timestamp = getTimestamp();
 
-    // Random value for another sensor
-    float turbidityValue = random(0, 10000) / 100.0;
+    // Read the turbidity sensor's output data voltage
+    int currentTurbidity = analogRead(turbidityPin);
+    float turbidityVoltage = currentTurbidity * (3.3 / 4095.0); // Convert ADC reading to voltage (3.3V reference)
+    float turbidityValue = turbidityVoltage;
     String sensor3Timestamp = getTimestamp();
+  
+    // Print raw voltage and calculated NTU value
+    //Serial.print("Raw Voltage: ");
+    //Serial.println(turbidityVoltage);
+
+    // Random value for another sensor
+    //float turbidityValue = random(0, 10000) / 100.0;
+    //String sensor3Timestamp = getTimestamp();
 
     // Format sensor values to 2 decimal places
     String formattedSensor1 = formatValue(temperatureF);
