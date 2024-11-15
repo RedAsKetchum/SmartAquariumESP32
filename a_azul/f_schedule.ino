@@ -108,6 +108,7 @@ void fetchSchedulesFromAdafruitIO() {
                                 schedules[existingIndex].enabled = enabled;
                                 schedules[existingIndex].device = device;
                                 schedules[existingIndex].scheduledDispenses = scheduledDispenses;
+                                schedules[existingIndex].executed = false;
 
                                 Serial.printf("Updated local schedule ID %s with new values\n", id.c_str());
                             }
@@ -152,6 +153,8 @@ void fetchSchedulesFromAdafruitIO() {
     }
 
     http.end();  // End the HTTP connection
+    sortSchedules();
+    lastCheck = 0;
 }
 
 int findScheduleByID(String id) {
@@ -211,17 +214,6 @@ void updateScheduleInAdafruitIO(String id, bool executed, bool enabled, String t
     http.end();  // End the HTTP connection
 }
 
-// Function to convert full day name to abbreviated form
-String getDayAbbreviation(const char* fullDay) {
-    if (strcmp(fullDay, "Sunday") == 0) return "Su";
-    if (strcmp(fullDay, "Monday") == 0) return "Mo";
-    if (strcmp(fullDay, "Tuesday") == 0) return "Tu";
-    if (strcmp(fullDay, "Wednesday") == 0) return "We";
-    if (strcmp(fullDay, "Thursday") == 0) return "Th";
-    if (strcmp(fullDay, "Friday") == 0) return "Fr";
-    if (strcmp(fullDay, "Saturday") == 0) return "Sa";
-    return "";  // Return empty string if no match is found
-}
 
 void addSchedule(String time, String days, bool enabled, String id, bool executed, String device, int scheduledDispenses) {
     int existingIndex = findScheduleByID(id);
@@ -371,6 +363,10 @@ void checkScheduleAndControlDevices() {
     if (millis() - lastCheck >= checkInterval) {
         lastCheck = millis();
 
+        if (millis() - lastFetch >= fetchInterval) {
+            fetchSchedulesFromAdafruitIO();
+            lastFetch = millis();
+        }
         time_t now = time(nullptr);
         struct tm *timeinfo = localtime(&now);
 
@@ -378,6 +374,7 @@ void checkScheduleAndControlDevices() {
         int day = timeinfo->tm_mday;
         int hour = timeinfo->tm_hour;
         int minute = timeinfo->tm_min;
+        int currentDay = timeinfo->tm_wday;
        
         String ampm = "AM";
         if (hour >= 12) {
@@ -393,14 +390,33 @@ void checkScheduleAndControlDevices() {
         char dateTime[20];
         sprintf(dateTime, "%02d.%02d %02d:%02d %s", month, day, hour, minute, ampm.c_str());
 
+        String currentDayAbbr;
+        switch (currentDay) { 
+            case 0: currentDayAbbr = "Su"; break;
+            case 1: currentDayAbbr = "Mo"; break;
+            case 2: currentDayAbbr = "Tu"; break;
+            case 3: currentDayAbbr = "We"; break;
+            case 4: currentDayAbbr = "Th"; break;
+            case 5: currentDayAbbr = "Fr"; break;
+            case 6: currentDayAbbr = "Sa"; break;
+            default: currentDayAbbr = ""; break;
+        }
+
+        Serial.printf("Total schedules: %d\n", scheduleCount);
         for (int i = 0; i < scheduleCount; i++) {
             if (schedules[i].enabled && !schedules[i].executed) {
                 Serial.printf("Checking Schedule %d: Time: %s, Days: %s, Device: %s\n", 
                               i + 1, schedules[i].time.c_str(), schedules[i].days.c_str(), schedules[i].device.c_str());
 
+                String scheduleDays = schedules[i].days;  // e.g., "MoWeFr"
+                if (!scheduleDays.isEmpty() && scheduleDays.indexOf(currentDayAbbr) == -1) {
+                    // Skip this schedule if today is not in the scheduled days and 'days' is not empty
+                    continue;
+                }
+
                 // Execute only once during the minute by marking it as executed right away
                 if (strcmp(currentTime, schedules[i].time.c_str()) == 0) {
-                    Serial.printf("Time match! Executing Schedule %d for Device: %s.\n", i + 1, schedules[i].device.c_str());
+                    Serial.printf("Time and day match! Executing Schedule %d for Device: %s.\n", i + 1, schedules[i].device.c_str());
 
                     if (schedules[i].device == "LED") {
                         // Turn LED on only once at the scheduled time
@@ -483,48 +499,8 @@ void resetExecutedFlagsIfNewDay() {
 
 bool compareSchedulesForChanges(const Schedule &localSchedule, const Schedule &newSchedule) {
   // Compare time, days, and enabled status for changes
-  return (localSchedule.time == newSchedule.time) && 
+   return (localSchedule.time == newSchedule.time) && 
          (localSchedule.days == newSchedule.days) && 
-         (localSchedule.enabled == newSchedule.enabled);
+         (localSchedule.enabled == newSchedule.enabled) &&
+         (localSchedule.device == newSchedule.device);
 }
-
-void monitorScheduleChanges() {
-    // Set up a timer to check for changes periodically
-    static unsigned long lastFetchTime = 0;
-    const unsigned long fetchInterval = 10000;  // Fetch every 30 seconds
-
-    if (millis() - lastFetchTime >= fetchInterval) {
-        lastFetchTime = millis();
-        
-        // Fetch latest schedules from Adafruit IO
-        fetchSchedulesFromAdafruitIO();
-
-        // Compare fetched schedules with local schedules
-        for (int i = 0; i < scheduleCount; i++) {
-            int fetchedIndex = findScheduleByID(schedules[i].id);
-            
-            if (fetchedIndex != -1) {
-                Schedule fetchedSchedule = schedules[fetchedIndex];
-
-                // Check if the fetched schedule is different from the local schedule
-                if (!compareSchedulesForChanges(schedules[i], fetchedSchedule)) {
-                    Serial.printf("Detected changes in Schedule ID %s. Updating local schedule.\n", schedules[i].id.c_str());
-                    
-                    // Update the local schedule with new values
-                    schedules[i].time = fetchedSchedule.time;
-                    schedules[i].days = fetchedSchedule.days;
-                    schedules[i].enabled = fetchedSchedule.enabled;
-                    schedules[i].device = fetchedSchedule.device;
-                    schedules[i].scheduledDispenses = fetchedSchedule.scheduledDispenses;
-                    
-                    // If necessary, update execution flags or trigger any actions based on changes
-                    if (fetchedSchedule.enabled != schedules[i].enabled || fetchedSchedule.scheduledDispenses != schedules[i].scheduledDispenses) {
-                        Serial.println("Executing actions based on updated schedule.");
-                        checkScheduleAndControlDevices();
-                    }
-                }
-            }
-        }
-    }
-}
-
