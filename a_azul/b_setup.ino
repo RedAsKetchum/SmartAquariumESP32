@@ -4,7 +4,7 @@ String jsonString;
 void setup() {
     // Start the serial connection for debugging
     Serial.begin(115200);
-    delay(1000); // Gives time for the serial monitor to catch up with the statements that follow
+    delay(3000); // Gives time for the serial monitor to catch up with the statements that follow
 
     Serial.println("Starting setup...");
 

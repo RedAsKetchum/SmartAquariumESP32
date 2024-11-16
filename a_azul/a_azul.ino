@@ -15,8 +15,8 @@
 #include <DallasTemperature.h>
 
 // ******************** WiFi credentials *******************************
-#define WIFI_SSID       "In Your Area-2G"
-#define WIFI_PASSWORD   "lightfield289"
+#define WIFI_SSID       "Battle_Network"
+#define WIFI_PASSWORD   "Pandy218!"
 
 // NTP server to request time
 const char* ntpServer = "pool.ntp.org";
@@ -88,23 +88,23 @@ const long interval = 8000;      // Interval between data insertions
 float lastSensor1Value = 0;  
 
 //Temperature Sensor
-#define ONE_WIRE_BUS 33       // Data wire is connected to pin 2 on the Arduino
+#define ONE_WIRE_BUS 16       // Data wire is connected to pin 2 on the Arduino
 OneWire oneWire(ONE_WIRE_BUS);// Setup a oneWire instance to communicate with any OneWire devices
 DallasTemperature tempSensor(&oneWire); // Pass the oneWire reference to DallasTemperature library
 
 //pH Sensor
 // Define the pin where the pH sensor is connected
-#define PH_SENSOR_PIN 34  // GPIO34 (ADC pin) of ESP32 for analog input
+#define PH_SENSOR_PIN 2  // GPIO34 (ADC pin) of ESP32 for analog input
 
-//Turbidity Sensor
+// //Turbidity Sensor
 const int turbidityPin = 4;
 
 // Calibration values for pH sensor V1 (adjust if necessary)
 #define Offset 0.68 
-#define ArrayLenth  40    //times of collection
+#define ArrayLenth  40        //times of collection
 int pHArray[ArrayLenth];     // store sensor feedback values
 int pHArrayIndex = 0;
-float currentPH; 
+static float currentPH; 
 
 Servo myServo;
 const int servoPin = 13;  // GPIO for Servo
@@ -113,9 +113,8 @@ unsigned long servoMoveStartTime = 0;  // Time when servo started moving
 int servoState = 0;      // Track servo state (0 = idle, 1 = moving to 45 degrees, 2 = returning)
 
 // Variables for pH calculation
-float voltage;
+static float voltage;
 float pHValue;
-unsigned long lastSampleTime = 0;
 
 // Connect
 void connectWiFi();

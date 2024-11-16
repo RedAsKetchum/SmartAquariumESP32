@@ -4,9 +4,11 @@ float turbidityMin;
 float turbidityMax;
 float pHMin;
 float pHMax;
+#define samplingInterval 20
 
 void loop() {
   unsigned long currentMillis = millis();
+  static unsigned long samplingTime = millis();
 
   // Keep the connection to Adafruit IO alive
   io.run();
@@ -190,7 +192,6 @@ if (subscription == &servoFeed) {
   // Check if the interval has passed before inserting a new entry in the database
   if (currentMillis - previousMillis >= interval) {
     previousMillis = currentMillis;
-
     
      if (wifiNetworkFeed.publish(jsonString.c_str())) {
       //Serial.println("Wi-Fi network name sent to Adafruit IO");
@@ -243,23 +244,27 @@ if (subscription == &servoFeed) {
     float temperatureF = tempSensor.toFahrenheit(temperatureC);
     String sensor1Timestamp = getTimestamp();
 
+    if(millis()-samplingTime > samplingInterval){
     // Read the analog value from the pH sensor (10-bit ADC: 0-4095)
     pHArray[pHArrayIndex++] = analogRead(PH_SENSOR_PIN);
     if (pHArrayIndex == ArrayLenth) pHArrayIndex = 0;
     voltage = avergearray(pHArray, ArrayLenth) * 3.3 / 4095;
     currentPH = 3.5 * voltage + Offset;
     pHValue =  currentPH;
+      }
+
     String sensor2Timestamp = getTimestamp();
+    Serial.println(pHValue);
 
     // Read the turbidity sensor's output data voltage
     int currentTurbidity = analogRead(turbidityPin);
     float turbidityVoltage = currentTurbidity * (3.3 / 4095.0); // Convert ADC reading to voltage (3.3V reference)
-    float turbidityValue = turbidityVoltage;
     String sensor3Timestamp = getTimestamp();
   
     // Print raw voltage and calculated NTU value
-    //Serial.print("Raw Voltage: ");
-    //Serial.println(turbidityVoltage);
+    Serial.print("Raw Voltage: ");
+    Serial.println(turbidityVoltage);
+    Serial.println(currentTurbidity);
 
     // Random value for another sensor
     //float turbidityValue = random(0, 10000) / 100.0;
@@ -268,7 +273,7 @@ if (subscription == &servoFeed) {
     // Format sensor values to 2 decimal places
     String formattedSensor1 = formatValue(temperatureF);
     String formattedSensor2 = formatValue(pHValue);
-    String formattedSensor3 = formatValue(turbidityValue);
+    String formattedSensor3 = formatValue(turbidityVoltage);
 
     // Get the current date formatted as MM.DD
     String formattedDate = getFormattedDate();
@@ -301,7 +306,7 @@ if (subscription == &servoFeed) {
     //Serial.println(jsonResponse);
 
     //Check if sensor values exceed thresholds and notify the user. Limits set by the user.
-    checkSensorValues(temperatureF, pHValue, turbidityValue); 
+    checkSensorValues(temperatureF, pHValue, turbidityVoltage); 
     
     // Print the table after the insertion or update
     //printTable();
