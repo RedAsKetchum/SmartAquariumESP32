@@ -30,15 +30,15 @@ void setup() {
    
     //MQTT_connect();
 
-    // Send the network name to the Adafruit IO feed
-    // if (wifiNetworkFeed.publish(jsonString.c_str())) {
-    //   Serial.println("Wi-Fi network name sent to Adafruit IO");
-    // } else {
-    //   Serial.println("Failed to send Wi-Fi network name");
-    // }
+    //Send the network name to the Adafruit IO feed
+    if (wifiNetworkFeed.publish(jsonString.c_str())) {
+      Serial.println("Wi-Fi network name sent to Adafruit IO");
+    } else {
+      Serial.println("Failed to send Wi-Fi network name");
+    }
     
     // Seed the random number generator with an analog input (for testing database entries)
-    randomSeed(analogRead(0));
+    //randomSeed(analogRead(0));
 
     // Configure the pin mode for pH sensor as an input
     pinMode(PH_SENSOR_PIN, INPUT);

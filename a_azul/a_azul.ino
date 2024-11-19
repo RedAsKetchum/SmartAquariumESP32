@@ -26,7 +26,7 @@ const char* timeZone = "EST5EDT,M3.2.0,M11.1.0";  // Timezone for New York City
 #define AIO_SERVER      "io.adafruit.com"
 #define AIO_SERVERPORT  1883  // Use 8883 for SSL
 #define AIO_USERNAME    "RedAsKetchum"
-#define AIO_KEY         "aio_FXeu11JxZcmPv3ey6r4twxbIyrfH"
+#define AIO_KEY         "aio_Ecnw98E4ugDJ18vonFBSkLymwvwj"
 
 // NeoPixel strip settings
 #define LED_PIN         15  // Pin where the data line is connected (Din)
@@ -83,8 +83,8 @@ unsigned long fetchInterval = 2000;
 sqlite3 *db;
 char *zErrMsg = 0;
 int rc;
-unsigned long previousMillis = 0;   // To store the last time you inserted data
-const long interval = 8000;      // Interval between data insertions
+unsigned long previousMillis = 0;// To store the last time you inserted data
+const long interval = 8000;    // Interval between data insertions
 float lastSensor1Value = 0;  
 
 //Temperature Sensor
@@ -94,13 +94,13 @@ DallasTemperature tempSensor(&oneWire); // Pass the oneWire reference to DallasT
 
 //pH Sensor
 // Define the pin where the pH sensor is connected
-#define PH_SENSOR_PIN 2  // GPIO34 (ADC pin) of ESP32 for analog input
+#define PH_SENSOR_PIN 32      // GPIO34 (ADC pin) of ESP32 for analog input
 
-// //Turbidity Sensor
-const int turbidityPin = 4;
+//Turbidity Sensor
+const int turbidityPin = 17;
 
 // Calibration values for pH sensor V1 (adjust if necessary)
-#define Offset 0.68 
+#define Offset 0 
 #define ArrayLenth  40        //times of collection
 int pHArray[ArrayLenth];     // store sensor feedback values
 int pHArrayIndex = 0;
