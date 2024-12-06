@@ -51,6 +51,126 @@ int timeToMinutes(String timeStr) {
   return hour * 60 + minute;  // Total minutes from midnight
 }
 
+bool isValidTime(String time) {
+    //printTimeDetails(time);
+    // Check length: Expected length is 8 (e.g., "12:00 PM")
+    if (time.length() != 8) {
+        Serial.printf("Invalid time length (%d): %s\n", time.length(), time.c_str());
+        return false;
+    }
+
+    // Check format using sscanf
+    int hour, minute;
+    char ampm[3];  // For "AM" or "PM"
+    if (sscanf(time.c_str(), "%d:%d %2s", &hour, &minute, ampm) != 3) {
+        Serial.printf("Time format is incorrect: %s\n", time.c_str());
+        return false;
+    }
+
+    // Validate hour range (1–12)
+    if (hour < 1 || hour > 12) {
+        Serial.printf("Invalid hour in time: %s\n", time.c_str());
+        return false;
+    }
+
+    // Validate minute range (0–59)
+    if (minute < 0 || minute > 59) {
+        Serial.printf("Invalid minute in time: %s\n", time.c_str());
+        return false;
+    }
+
+    // Validate AM/PM
+    String ampmStr = String(ampm);
+    ampmStr.toUpperCase();  // Ensure case-insensitivity
+    if (ampmStr != "AM" && ampmStr != "PM") {
+        Serial.printf("Invalid AM/PM specifier in time: %s\n", time.c_str());
+        return false;
+    }
+
+    // If all checks pass
+    return true;
+}
+
+String cleanTime(String time) {
+    String cleaned = "";
+    for (int i = 0; i < time.length(); i++) {
+        char c = time[i];
+        // Only include printable characters and remove unwanted ASCII characters
+        if (isPrintable(c) && c != 226 && c != 128 && c != 175) {
+            cleaned += c;
+        }
+    }
+
+    // Ensure there's a space before "AM" or "PM"
+    if (cleaned.endsWith("AM") || cleaned.endsWith("PM")) {
+        if (cleaned.length() == 6 || cleaned.length() == 7) {
+            // Insert a space before "AM" or "PM" if missing
+            cleaned = cleaned.substring(0, cleaned.length() - 2) + " " + cleaned.substring(cleaned.length() - 2);
+        }
+    }
+
+    // Add a leading zero if the hour is a single digit
+    if (cleaned.length() == 7) {
+        cleaned = "0" + cleaned;  // Make it 'hh:mm AM/PM'
+    }
+
+    return cleaned;
+}
+
+// Function to clean and format days
+String cleanDays(String days) {
+    String cleaned = "";
+    for (int i = 0; i < days.length(); i++) {
+        char c = days[i];
+        // Only include printable characters and remove unwanted ASCII characters
+        if (isPrintable(c) && c != 226 && c != 128 && c != 175) {
+            cleaned += c;
+        }
+    }
+    return cleaned;
+}
+
+// Function to validate the cleaned days string
+bool isValidDays(String days) {
+    // Define valid day abbreviations
+    String validDays[] = {"Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"};
+
+    // Check for valid length and combinations
+    int i = 0;
+    while (i < days.length()) {
+        bool valid = false;
+
+        // Check each valid day abbreviation
+        for (String validDay : validDays) {
+            if (days.substring(i, i + validDay.length()) == validDay) {
+                valid = true;
+                i += validDay.length();  // Move to the next day in the string
+                break;
+            }
+        }
+
+        if (!valid) {
+            Serial.printf("Invalid day detected in schedule: %s\n", days.c_str());
+            return false;
+        }
+    }
+
+    return true;  // All days are valid
+}
+
+// void printTimeDetails(String time) {
+//     Serial.printf("Analyzing time: '%s', Length: %d\n", time.c_str(), time.length());
+//     for (int i = 0; i < time.length(); i++) {
+//         Serial.printf("Char: '%c', ASCII: %d\n", time[i], time[i]);
+//     }
+// }
+// void printDaysDetails(String days) {
+//     Serial.printf("Analyzing days: '%s', Length: %d\n", days.c_str(), days.length());
+//     for (int i = 0; i < days.length(); i++) {
+//         Serial.printf("Char: '%c', ASCII: %d\n", days[i], days[i]);
+//     }
+// }
+
 void fetchSchedulesFromAdafruitIO() {
     HTTPClient http;
     String url = String("https://io.adafruit.com/api/v2/") + AIO_USERNAME + "/feeds/feeding-schedule/data";
@@ -86,10 +206,20 @@ void fetchSchedulesFromAdafruitIO() {
 
                     if (!valueError) {
                         String time = valueDoc["time"];
+                        time = cleanTime(time);  // Clean the time string to remove unwanted characters
+                        //printTimeDetails(time);  // Check the cleaned time
+                        
                         String days = valueDoc["days"];
+                        days = cleanDays(days);  
+                        //printDaysDetails(days);
                         bool enabled = valueDoc["enabled"];
                         String device = valueDoc["device"];
                         int scheduledDispenses = valueDoc["scheduledDispenses"];
+
+                            if (!isValidTime(time)) {
+                                Serial.printf("Invalid time detected in schedule: %s\n", time.c_str());
+                                continue;  // Skip this schedule if the time is invalid
+                            }
 
                         // Find the schedule by ID in the local list
                         int existingIndex = findScheduleByID(id);

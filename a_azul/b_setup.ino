@@ -4,7 +4,7 @@ String jsonString;
 void setup() {
     // Start the serial connection for debugging
     Serial.begin(115200);
-    delay(1000); // Gives time for the serial monitor to catch up with the statements that follow
+    delay(3000); // Gives time for the serial monitor to catch up with the statements that follow
 
     Serial.println("Starting setup...");
 
@@ -30,15 +30,15 @@ void setup() {
    
     //MQTT_connect();
 
-    // Send the network name to the Adafruit IO feed
-    // if (wifiNetworkFeed.publish(jsonString.c_str())) {
-    //   Serial.println("Wi-Fi network name sent to Adafruit IO");
-    // } else {
-    //   Serial.println("Failed to send Wi-Fi network name");
-    // }
+    //Send the network name to the Adafruit IO feed
+    if (wifiNetworkFeed.publish(jsonString.c_str())) {
+      Serial.println("Wi-Fi network name sent to Adafruit IO");
+    } else {
+      Serial.println("Failed to send Wi-Fi network name");
+    }
     
     // Seed the random number generator with an analog input (for testing database entries)
-    randomSeed(analogRead(0));
+    //randomSeed(analogRead(0));
 
     // Configure the pin mode for pH sensor as an input
     pinMode(PH_SENSOR_PIN, INPUT);
@@ -119,6 +119,10 @@ void setup() {
 
     //Sensor Limits
     mqtt.subscribe(&sensorSettingsFeed); // Subscribe to the sensor-settings feed
+
+    // Subscribe to the feeds
+    mqtt.subscribe(&turbidityFeed);
+    mqtt.subscribe(&pHFeed);
 
     // Initialize EEPROM to store RGB and brightness values
     EEPROM.begin(EEPROM_SIZE);

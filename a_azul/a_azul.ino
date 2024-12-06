@@ -16,7 +16,7 @@
 
 // ******************** WiFi credentials *******************************
 #define WIFI_SSID       "Battle_Network"
-#define WIFI_PASSWORD   "Pandy218!"
+#define WIFI_PASSWORD   "Wolfy218!"
 
 // NTP server to request time
 const char* ntpServer = "pool.ntp.org";
@@ -26,7 +26,7 @@ const char* timeZone = "EST5EDT,M3.2.0,M11.1.0";  // Timezone for New York City
 #define AIO_SERVER      "io.adafruit.com"
 #define AIO_SERVERPORT  1883  // Use 8883 for SSL
 #define AIO_USERNAME    "RedAsKetchum"
-#define AIO_KEY         "aio_FXeu11JxZcmPv3ey6r4twxbIyrfH"
+#define AIO_KEY         "aio_Ecnw98E4ugDJ18vonFBSkLymwvwj"
 
 // NeoPixel strip settings
 #define LED_PIN         15  // Pin where the data line is connected (Din)
@@ -52,6 +52,12 @@ Adafruit_MQTT_Publish sensorDataFeed = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME
 Adafruit_MQTT_Subscribe sensorSettingsFeed = Adafruit_MQTT_Subscribe(&mqtt, AIO_USERNAME "/feeds/sensor-settings");
 Adafruit_MQTT_Publish notifications = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "/feeds/notifications"); 
 Adafruit_MQTT_Publish wifiNetworkFeed = Adafruit_MQTT_Publish(&mqtt,AIO_USERNAME "/feeds/wifi-network");
+
+
+// Declare feed objects
+Adafruit_MQTT_Subscribe turbidityFeed = Adafruit_MQTT_Subscribe(&mqtt, AIO_USERNAME "/feeds/turbidity-extra");
+Adafruit_MQTT_Subscribe pHFeed = Adafruit_MQTT_Subscribe(&mqtt, AIO_USERNAME "/feeds/ph-extra");
+
 
 struct Schedule {
     String time;
@@ -83,28 +89,25 @@ unsigned long fetchInterval = 2000;
 sqlite3 *db;
 char *zErrMsg = 0;
 int rc;
-unsigned long previousMillis = 0;   // To store the last time you inserted data
-const long interval = 8000;      // Interval between data insertions
+unsigned long previousMillis = 0;// To store the last time you inserted data
+const long interval = 5000;    // Interval between data insertions
 float lastSensor1Value = 0;  
 
 //Temperature Sensor
-#define ONE_WIRE_BUS 33       // Data wire is connected to pin 2 on the Arduino
+#define ONE_WIRE_BUS 16       // Data wire is connected to pin 2 on the Arduino
 OneWire oneWire(ONE_WIRE_BUS);// Setup a oneWire instance to communicate with any OneWire devices
 DallasTemperature tempSensor(&oneWire); // Pass the oneWire reference to DallasTemperature library
 
 //pH Sensor
 // Define the pin where the pH sensor is connected
-#define PH_SENSOR_PIN 34  // GPIO34 (ADC pin) of ESP32 for analog input
-
-//Turbidity Sensor
-const int turbidityPin = 4;
+#define PH_SENSOR_PIN 32      // GPIO34 (ADC pin) of ESP32 for analog input
 
 // Calibration values for pH sensor V1 (adjust if necessary)
-#define Offset 0.68 
-#define ArrayLenth  40    //times of collection
-int pHArray[ArrayLenth];     // store sensor feedback values
-int pHArrayIndex = 0;
-float currentPH; 
+// #define Offset 0 
+// #define ArrayLenth  40        //times of collection
+// int pHArray[ArrayLenth];     // store sensor feedback values
+// int pHArrayIndex = 0;
+// static float currentPH; 
 
 Servo myServo;
 const int servoPin = 13;  // GPIO for Servo
@@ -113,9 +116,9 @@ unsigned long servoMoveStartTime = 0;  // Time when servo started moving
 int servoState = 0;      // Track servo state (0 = idle, 1 = moving to 45 degrees, 2 = returning)
 
 // Variables for pH calculation
-float voltage;
+static float voltage;
 float pHValue;
-unsigned long lastSampleTime = 0;
+double avergearray(int* arr, int number);
 
 // Connect
 void connectWiFi();

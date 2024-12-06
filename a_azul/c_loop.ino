@@ -4,9 +4,29 @@ float turbidityMin;
 float turbidityMax;
 float pHMin;
 float pHMax;
+//#define samplingInterval 20
+#define OFFSET 1.00
+
+#define LED 13                // LED pin for visual feedback
+#define samplingInterval 50   // Sampling interval in milliseconds
+#define printInterval 800     // Print interval in milliseconds
+#define ArrayLenth 100        // Number of samples for averaging
+
+// Updated calibration constants for each range
+#define Slope_1 3.66          // Refined slope for 4–7 pH range
+#define Offset_1 2.21
+#define Slope_2 1.95          // Slope for 7–10 pH range (unchanged)
+#define Offset_2 4.72         // Offset for 7–10 pH range (unchanged)
+
+int pHArray[ArrayLenth];
+int pHArrayIndex = 0;
 
 void loop() {
   unsigned long currentMillis = millis();
+  //static unsigned long samplingTime = millis();
+  static unsigned long samplingTime = millis();
+  static unsigned long printTime = millis();
+  static float voltage, pHValue, turbidityVal, pHVal;
 
   // Keep the connection to Adafruit IO alive
   io.run();
@@ -35,7 +55,7 @@ void loop() {
       }
     }
 
-    // Handle schedule feed subscription
+    //Handle schedule feed subscription
     if (subscription == &scheduleFeed) {
       char *scheduleData = (char *)scheduleFeed.lastread;
       Serial.print("Raw Schedule Data Received: ");
@@ -45,15 +65,15 @@ void loop() {
       printAllSchedules();
     }
 
-    // Handle servo feed subscription - MODIFY HERE!
-    // if (subscription == &servoFeed) {
-    //   String data = (char *)servoFeed.lastread;
-    //   if (data == "activate") {
-    //     activateServo();  // Call the function to activate the servo
-    //   }
-    // }
+    //Handle servo feed subscription - MODIFY HERE!
+    if (subscription == &servoFeed) {
+      String data = (char *)servoFeed.lastread;
+      if (data == "activate") {
+        activateServo();  // Call the function to activate the servo
+      }
+    }
 
- // Handle servo feed subscription
+ //Handle servo feed subscription
 if (subscription == &servoFeed) {
     String data = (char *)servoFeed.lastread;
     Serial.print("Received data: ");
@@ -172,8 +192,8 @@ if (subscription == &servoFeed) {
         }
   }
 
-  // Reset executed flags if a new day has started
-  resetExecutedFlagsIfNewDay();
+    // Reset executed flags if a new day has started
+   resetExecutedFlagsIfNewDay();
  
   // Check and control LEDs based on the schedule
   if (scheduleCount > 0) {
@@ -190,10 +210,9 @@ if (subscription == &servoFeed) {
   // Check if the interval has passed before inserting a new entry in the database
   if (currentMillis - previousMillis >= interval) {
     previousMillis = currentMillis;
-
     
      if (wifiNetworkFeed.publish(jsonString.c_str())) {
-      //Serial.println("Wi-Fi network name sent to Adafruit IO");
+      Serial.println("Wi-Fi network name sent to Adafruit IO");
     } else {
       Serial.println("Failed to send Wi-Fi network name");
     }
@@ -242,33 +261,87 @@ if (subscription == &servoFeed) {
     float temperatureC = tempSensor.getTempCByIndex(0);
     float temperatureF = tempSensor.toFahrenheit(temperatureC);
     String sensor1Timestamp = getTimestamp();
+    Serial.println("temperatureF: ");
+    Serial.println(temperatureF);
+
 
     // Read the analog value from the pH sensor (10-bit ADC: 0-4095)
+    // int analogValue = analogRead(PH_SENSOR_PIN);
+
+    // Convert the analog value (0-4095) to a voltage (0-3.3V)
+    // voltage = analogValue * (3.3 / 4095.0);
+    // Serial.println("ph Voltage: ");
+    // Serial.println(voltage);
+
+    // Calculate pH using the formula for pH V1 sensor (usually 3.5 * voltage)
+    // pHValue = 3.5 * voltage + OFFSET;
+    // String sensor2Timestamp = getTimestamp();
+    // Serial.println("pHValue: ");
+    // Serial.println(pHValue);
+
+    //Read PH
     pHArray[pHArrayIndex++] = analogRead(PH_SENSOR_PIN);
     if (pHArrayIndex == ArrayLenth) pHArrayIndex = 0;
-    voltage = avergearray(pHArray, ArrayLenth) * 3.3 / 4095;
-    currentPH = 3.5 * voltage + Offset;
-    pHValue =  currentPH;
+    voltage = avergearray(pHArray, ArrayLenth) * 3.3 / 4095;  // Convert ADC value to voltage
+
+
+  if (millis() - samplingTime > samplingInterval) {
+    // Apply piecewise calibration
+    if (voltage <= 1.15) {
+      pHValue = Slope_1 * voltage + Offset_1;  // For 4–7 pH range
+    } else {
+      pHValue = Slope_2 * voltage + Offset_2;  // For 7–10 pH range
+    }
+
+     samplingTime = millis();
+  }
+    
+    pHValue = voltage;
     String sensor2Timestamp = getTimestamp();
 
-    // Read the turbidity sensor's output data voltage
-    int currentTurbidity = analogRead(turbidityPin);
-    float turbidityVoltage = currentTurbidity * (3.3 / 4095.0); // Convert ADC reading to voltage (3.3V reference)
-    float turbidityValue = turbidityVoltage;
+    Serial.println("pHValue: ");
+    Serial.println(pHValue);
+
+    // Read Turbidity Voltage
+    int currentTurbidity = analogRead(35); 
+    float turbidityVoltage = currentTurbidity * (3.3 / 4095.0);
     String sensor3Timestamp = getTimestamp();
-  
+    Serial.println("Turbidity Voltage: ");
+    Serial.println(turbidityVoltage);
+
     // Print raw voltage and calculated NTU value
-    //Serial.print("Raw Voltage: ");
-    //Serial.println(turbidityVoltage);
+    // Serial.print("Raw Voltage: ");
+    // Serial.println(turbidityVoltage);
+    // Serial.println(currentTurbidity);
 
     // Random value for another sensor
-    //float turbidityValue = random(0, 10000) / 100.0;
-    //String sensor3Timestamp = getTimestamp();
+    // float turbidityValue = random(0, 10000) / 100.0;
+    // String sensor3Timestamp = getTimestamp();
+
+    // Ensure the MQTT client stays connected
+      mqtt.processPackets(1000); // Process incoming messages every 1 seconds
+      
+      if (turbidityFeed.lastread != NULL) {
+      turbidityVal = atof((char *)turbidityFeed.lastread);
+      Serial.print("Turbidity Value: ");
+      Serial.println(turbidityVal);
+    }
+
+    // Check if there's new data in the pH feed
+    if (pHFeed.lastread != NULL) {
+      pHVal = atof((char *)pHFeed.lastread);
+      Serial.print("pH Value: ");
+      Serial.println(pHVal);
+    }
 
     // Format sensor values to 2 decimal places
     String formattedSensor1 = formatValue(temperatureF);
-    String formattedSensor2 = formatValue(pHValue);
-    String formattedSensor3 = formatValue(turbidityValue);
+    //String formattedSensor2 = formatValue(pHValue);
+    //String formattedSensor3 = formatValue(turbidityVoltage);
+    
+    //Extra Values
+    String formattedSensor2 = formatValue(pHVal);
+    String formattedSensor3 = formatValue(turbidityVal);
 
     // Get the current date formatted as MM.DD
     String formattedDate = getFormattedDate();
@@ -301,7 +374,7 @@ if (subscription == &servoFeed) {
     //Serial.println(jsonResponse);
 
     //Check if sensor values exceed thresholds and notify the user. Limits set by the user.
-    checkSensorValues(temperatureF, pHValue, turbidityValue); 
+    checkSensorValues(temperatureF, pHVal, turbidityVal); 
     
     // Print the table after the insertion or update
     //printTable();
