@@ -120,6 +120,10 @@ void setup() {
     //Sensor Limits
     mqtt.subscribe(&sensorSettingsFeed); // Subscribe to the sensor-settings feed
 
+    // Subscribe to the feeds
+    mqtt.subscribe(&turbidityFeed);
+    mqtt.subscribe(&pHFeed);
+
     // Initialize EEPROM to store RGB and brightness values
     EEPROM.begin(EEPROM_SIZE);
 

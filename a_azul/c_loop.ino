@@ -7,9 +7,26 @@ float pHMax;
 //#define samplingInterval 20
 #define OFFSET 1.00
 
+#define LED 13                // LED pin for visual feedback
+#define samplingInterval 50   // Sampling interval in milliseconds
+#define printInterval 800     // Print interval in milliseconds
+#define ArrayLenth 100        // Number of samples for averaging
+
+// Updated calibration constants for each range
+#define Slope_1 3.66          // Refined slope for 4–7 pH range
+#define Offset_1 2.21
+#define Slope_2 1.95          // Slope for 7–10 pH range (unchanged)
+#define Offset_2 4.72         // Offset for 7–10 pH range (unchanged)
+
+int pHArray[ArrayLenth];
+int pHArrayIndex = 0;
+
 void loop() {
   unsigned long currentMillis = millis();
+  //static unsigned long samplingTime = millis();
   static unsigned long samplingTime = millis();
+  static unsigned long printTime = millis();
+  static float voltage, pHValue, turbidityVal, pHVal;
 
   // Keep the connection to Adafruit IO alive
   io.run();
@@ -249,16 +266,39 @@ if (subscription == &servoFeed) {
 
 
     // Read the analog value from the pH sensor (10-bit ADC: 0-4095)
-    int analogValue = analogRead(PH_SENSOR_PIN);
+    // int analogValue = analogRead(PH_SENSOR_PIN);
 
     // Convert the analog value (0-4095) to a voltage (0-3.3V)
-    voltage = analogValue * (3.3 / 4095.0);
-    Serial.println("ph Voltage: ");
-    Serial.println(voltage);
+    // voltage = analogValue * (3.3 / 4095.0);
+    // Serial.println("ph Voltage: ");
+    // Serial.println(voltage);
 
     // Calculate pH using the formula for pH V1 sensor (usually 3.5 * voltage)
-    pHValue = 3.5 * voltage + OFFSET;
+    // pHValue = 3.5 * voltage + OFFSET;
+    // String sensor2Timestamp = getTimestamp();
+    // Serial.println("pHValue: ");
+    // Serial.println(pHValue);
+
+    //Read PH
+    pHArray[pHArrayIndex++] = analogRead(PH_SENSOR_PIN);
+    if (pHArrayIndex == ArrayLenth) pHArrayIndex = 0;
+    voltage = avergearray(pHArray, ArrayLenth) * 3.3 / 4095;  // Convert ADC value to voltage
+
+
+  if (millis() - samplingTime > samplingInterval) {
+    // Apply piecewise calibration
+    if (voltage <= 1.15) {
+      pHValue = Slope_1 * voltage + Offset_1;  // For 4–7 pH range
+    } else {
+      pHValue = Slope_2 * voltage + Offset_2;  // For 7–10 pH range
+    }
+
+     samplingTime = millis();
+  }
+    
+    pHValue = voltage;
     String sensor2Timestamp = getTimestamp();
+
     Serial.println("pHValue: ");
     Serial.println(pHValue);
 
@@ -278,10 +318,30 @@ if (subscription == &servoFeed) {
     // float turbidityValue = random(0, 10000) / 100.0;
     // String sensor3Timestamp = getTimestamp();
 
+    // Ensure the MQTT client stays connected
+      mqtt.processPackets(1000); // Process incoming messages every 1 seconds
+      
+      if (turbidityFeed.lastread != NULL) {
+      turbidityVal = atof((char *)turbidityFeed.lastread);
+      Serial.print("Turbidity Value: ");
+      Serial.println(turbidityVal);
+    }
+
+    // Check if there's new data in the pH feed
+    if (pHFeed.lastread != NULL) {
+      pHVal = atof((char *)pHFeed.lastread);
+      Serial.print("pH Value: ");
+      Serial.println(pHVal);
+    }
+
     // Format sensor values to 2 decimal places
     String formattedSensor1 = formatValue(temperatureF);
-    String formattedSensor2 = formatValue(pHValue);
-    String formattedSensor3 = formatValue(turbidityVoltage);
+    //String formattedSensor2 = formatValue(pHValue);
+    //String formattedSensor3 = formatValue(turbidityVoltage);
+    
+    //Extra Values
+    String formattedSensor2 = formatValue(pHVal);
+    String formattedSensor3 = formatValue(turbidityVal);
 
     // Get the current date formatted as MM.DD
     String formattedDate = getFormattedDate();
@@ -314,7 +374,7 @@ if (subscription == &servoFeed) {
     //Serial.println(jsonResponse);
 
     //Check if sensor values exceed thresholds and notify the user. Limits set by the user.
-    checkSensorValues(temperatureF, pHValue, turbidityVoltage); 
+    checkSensorValues(temperatureF, pHVal, turbidityVal); 
     
     // Print the table after the insertion or update
     //printTable();

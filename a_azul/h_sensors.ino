@@ -186,14 +186,14 @@ String fetchNewestEntryAsJson() {
       //     }
       // }
       // Check if turbidity is above maximum
-      if (turbidityValue > turbidityMax) {
-          // Send alert for high turbidity
-          if (notifications.publish("high turbidity")) {
-              //Serial.println("Alert sent for high turbidity");
-          } else {
-              Serial.println("Failed to send alert for high turbidity");
-          }
-      }
+      // if (turbidityValue > turbidityMax) {
+      //     // Send alert for high turbidity
+      //     if (notifications.publish("high turbidity")) {
+      //         //Serial.println("Alert sent for high turbidity");
+      //     } else {
+      //         Serial.println("Failed to send alert for high turbidity");
+      //     }
+      // }
   }
 
 

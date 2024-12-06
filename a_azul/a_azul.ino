@@ -16,7 +16,7 @@
 
 // ******************** WiFi credentials *******************************
 #define WIFI_SSID       "Battle_Network"
-#define WIFI_PASSWORD   "Pandy218!"
+#define WIFI_PASSWORD   "Wolfy218!"
 
 // NTP server to request time
 const char* ntpServer = "pool.ntp.org";
@@ -53,6 +53,12 @@ Adafruit_MQTT_Subscribe sensorSettingsFeed = Adafruit_MQTT_Subscribe(&mqtt, AIO_
 Adafruit_MQTT_Publish notifications = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "/feeds/notifications"); 
 Adafruit_MQTT_Publish wifiNetworkFeed = Adafruit_MQTT_Publish(&mqtt,AIO_USERNAME "/feeds/wifi-network");
 
+
+// Declare feed objects
+Adafruit_MQTT_Subscribe turbidityFeed = Adafruit_MQTT_Subscribe(&mqtt, AIO_USERNAME "/feeds/turbidity-extra");
+Adafruit_MQTT_Subscribe pHFeed = Adafruit_MQTT_Subscribe(&mqtt, AIO_USERNAME "/feeds/ph-extra");
+
+
 struct Schedule {
     String time;
     String days;
@@ -84,7 +90,7 @@ sqlite3 *db;
 char *zErrMsg = 0;
 int rc;
 unsigned long previousMillis = 0;// To store the last time you inserted data
-const long interval = 8000;    // Interval between data insertions
+const long interval = 5000;    // Interval between data insertions
 float lastSensor1Value = 0;  
 
 //Temperature Sensor
@@ -96,15 +102,12 @@ DallasTemperature tempSensor(&oneWire); // Pass the oneWire reference to DallasT
 // Define the pin where the pH sensor is connected
 #define PH_SENSOR_PIN 32      // GPIO34 (ADC pin) of ESP32 for analog input
 
-//Turbidity Sensor
-const int turbidityPin = 17;
-
 // Calibration values for pH sensor V1 (adjust if necessary)
-#define Offset 0 
-#define ArrayLenth  40        //times of collection
-int pHArray[ArrayLenth];     // store sensor feedback values
-int pHArrayIndex = 0;
-static float currentPH; 
+// #define Offset 0 
+// #define ArrayLenth  40        //times of collection
+// int pHArray[ArrayLenth];     // store sensor feedback values
+// int pHArrayIndex = 0;
+// static float currentPH; 
 
 Servo myServo;
 const int servoPin = 13;  // GPIO for Servo
@@ -115,6 +118,7 @@ int servoState = 0;      // Track servo state (0 = idle, 1 = moving to 45 degree
 // Variables for pH calculation
 static float voltage;
 float pHValue;
+double avergearray(int* arr, int number);
 
 // Connect
 void connectWiFi();
